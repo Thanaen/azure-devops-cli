@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const DEFAULT_COLLECTION_URL = 'https://devserver2/DefaultCollection';
 const DEFAULT_PROJECT = 'UserLock';
@@ -28,7 +28,6 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
   const args = [
     '--silent',
     '--show-error',
-    '--fail',
     '--insecure',
     '-u',
     `:${config.pat}`,
@@ -37,14 +36,32 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
     '-X',
     method,
     url,
+    '--write-out',
+    '\n__HTTP_STATUS__:%{http_code}',
   ];
 
   if (body) {
     args.push('--data', JSON.stringify(body));
   }
 
-  const out = execFileSync('curl', args, { encoding: 'utf8' });
-  return out ? JSON.parse(out) : null;
+  const result = spawnSync('curl', args, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+
+  if (result.error) {
+    throw new Error(`curl failed to execute: ${result.error.message}`);
+  }
+
+  const raw = result.stdout ?? '';
+  const marker = '\n__HTTP_STATUS__:';
+  const markerIndex = raw.lastIndexOf(marker);
+  const responseBody = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+  const statusCode = markerIndex >= 0 ? Number(raw.slice(markerIndex + marker.length).trim()) : NaN;
+
+  if (!Number.isFinite(statusCode) || statusCode < 200 || statusCode >= 300) {
+    const preview = (responseBody || result.stderr || '').trim().slice(0, 300);
+    throw new Error(`Azure DevOps API request failed (${Number.isFinite(statusCode) ? statusCode : 'unknown status'}). ${preview}`);
+  }
+
+  return responseBody ? JSON.parse(responseBody) : null;
 }
 
 function encodePathSegment(value) {
@@ -53,10 +70,10 @@ function encodePathSegment(value) {
 
 function getLatestWorkItem(config) {
   const wiql = {
-    query: 'SELECT TOP 1 [System.Id] FROM WorkItems ORDER BY [System.ChangedDate] DESC',
+    query: 'SELECT [System.Id] FROM WorkItems ORDER BY [System.ChangedDate] DESC',
   };
 
-  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql`, {
+  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=1`, {
     method: 'POST',
     body: wiql,
   });
