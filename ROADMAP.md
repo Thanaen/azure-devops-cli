@@ -1,5 +1,12 @@
 # ROADMAP
 
+## Operating mode
+
+- Treat this CLI as a continuously improved internal project.
+- Do not ask for approval for low-risk improvements (new read/list commands, better errors, output modes, safer defaults, docs, tests).
+- Batch improvements and ship in small commits.
+- Ask only for potentially disruptive changes (breaking command syntax, auth model changes, destructive actions).
+
 ## Next improvements
 
 1. **Config profiles**
