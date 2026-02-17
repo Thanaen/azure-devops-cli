@@ -197,10 +197,63 @@ function cmdPrGet(config, idRaw, repoArg) {
     title: pr.title,
     status: pr.status,
     createdBy: pr.createdBy?.displayName ?? null,
+    createdById: pr.createdBy?.id ?? null,
     sourceRef: pr.sourceRefName,
     targetRef: pr.targetRefName,
     url: pr.url,
   }, null, 2));
+}
+
+function cmdPrApprove(config, idRaw, repoArg) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    console.error('Usage: pr-approve <id> [repo]');
+    process.exit(1);
+  }
+
+  const repo = pickRepo(config, repoArg);
+  const prPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
+  const pr = adoRequest(config, prPath);
+  const reviewerId = pr.createdBy?.id;
+
+  if (!reviewerId) {
+    console.error('Could not determine reviewer id from PR createdBy.');
+    process.exit(1);
+  }
+
+  const reviewerPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}/reviewers/${encodePathSegment(reviewerId)}`;
+  adoRequest(config, reviewerPath, { method: 'PUT', body: { vote: 10 } });
+  console.log(`Approved PR #${id} as reviewer ${reviewerId}`);
+}
+
+function cmdPrAutocomplete(config, idRaw, repoArg) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    console.error('Usage: pr-autocomplete <id> [repo]');
+    process.exit(1);
+  }
+
+  const repo = pickRepo(config, repoArg);
+  const prPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
+  const pr = adoRequest(config, prPath);
+  const userId = pr.createdBy?.id;
+
+  if (!userId) {
+    console.error('Could not determine user id from PR createdBy.');
+    process.exit(1);
+  }
+
+  adoRequest(config, prPath, {
+    method: 'PATCH',
+    body: {
+      autoCompleteSetBy: { id: userId },
+      completionOptions: {
+        deleteSourceBranch: true,
+      },
+    },
+  });
+
+  console.log(`Enabled auto-complete for PR #${id}`);
 }
 
 function cmdBuilds(config, topRaw = '10') {
@@ -244,7 +297,7 @@ function cmdPrCreate(config, args) {
 }
 
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
@@ -275,6 +328,12 @@ function main() {
       break;
     case 'pr-create':
       cmdPrCreate(config, args);
+      break;
+    case 'pr-approve':
+      cmdPrApprove(config, args[0], args[1]);
+      break;
+    case 'pr-autocomplete':
+      cmdPrAutocomplete(config, args[0], args[1]);
       break;
     case 'builds':
       cmdBuilds(config, args[0]);

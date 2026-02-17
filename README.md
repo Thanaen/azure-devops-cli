@@ -29,6 +29,8 @@ bun src/cli.mjs smoke
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...]`
+- `pr-approve <id> [repo]`
+- `pr-autocomplete <id> [repo]`
 - `builds [top]`
 
 ## Exposed command
