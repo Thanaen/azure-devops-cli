@@ -226,6 +226,34 @@ function cmdPrApprove(config, idRaw, repoArg) {
   console.log(`Approved PR #${id} as reviewer ${reviewerId}`);
 }
 
+function getOptionalWorkItemPolicyIds(config, repositoryId, targetRefName) {
+  const policies = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/policy/configurations`);
+  const ids = [];
+
+  for (const policy of policies?.value ?? []) {
+    const typeName = policy?.type?.displayName;
+    if (typeName !== 'Work item linking') continue;
+    if (!policy?.isEnabled || policy?.isBlocking) continue;
+
+    const scopes = policy?.settings?.scope;
+    if (!Array.isArray(scopes) || scopes.length === 0) {
+      ids.push(policy.id);
+      continue;
+    }
+
+    const matchesScope = scopes.some((scope) => {
+      const repoOk = !scope.repositoryId || scope.repositoryId === repositoryId;
+      const refOk = !scope.refName || scope.refName === targetRefName;
+      const matchKindOk = !scope.matchKind || scope.matchKind === 'Exact' || scope.matchKind === 'Prefix';
+      return repoOk && refOk && matchKindOk;
+    });
+
+    if (matchesScope) ids.push(policy.id);
+  }
+
+  return ids;
+}
+
 function cmdPrAutocomplete(config, idRaw, repoArg) {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
@@ -243,17 +271,28 @@ function cmdPrAutocomplete(config, idRaw, repoArg) {
     process.exit(1);
   }
 
+  const optionalWorkItemPolicyIds = getOptionalWorkItemPolicyIds(
+    config,
+    pr.repository?.id,
+    pr.targetRefName,
+  );
+
   adoRequest(config, prPath, {
     method: 'PATCH',
     body: {
       autoCompleteSetBy: { id: userId },
       completionOptions: {
         deleteSourceBranch: true,
+        autoCompleteIgnoreConfigIds: optionalWorkItemPolicyIds,
       },
     },
   });
 
-  console.log(`Enabled auto-complete for PR #${id}`);
+  if (optionalWorkItemPolicyIds.length > 0) {
+    console.log(`Enabled auto-complete for PR #${id} (optional linked work item policies ignored: ${optionalWorkItemPolicyIds.join(', ')})`);
+  } else {
+    console.log(`Enabled auto-complete for PR #${id}`);
+  }
 }
 
 function cmdBuilds(config, topRaw = '10') {
