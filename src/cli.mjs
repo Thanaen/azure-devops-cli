@@ -336,8 +336,36 @@ function cmdPrCreate(config, args) {
   console.log(`Created PR #${created.pullRequestId}: ${created.title}`);
 }
 
+function cmdPrUpdate(config, idRaw, args) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...]');
+    process.exit(1);
+  }
+
+  const kv = Object.fromEntries(args.map((arg) => {
+    const [k, ...rest] = arg.split('=');
+    return [k.replace(/^--/, ''), rest.join('=')];
+  }));
+
+  const repo = pickRepo(config, kv.repo);
+  const body = {};
+
+  if (kv.title !== undefined) body.title = kv.title;
+  if (kv.description !== undefined) body.description = kv.description;
+
+  if (Object.keys(body).length === 0) {
+    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...]');
+    process.exit(1);
+  }
+
+  const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
+  const updated = adoRequest(config, path, { method: 'PATCH', body });
+  console.log(`Updated PR #${updated.pullRequestId}: ${updated.title}`);
+}
+
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...]\n  pr-update <id> [--title=...] [--description=...] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
@@ -368,6 +396,9 @@ function main() {
       break;
     case 'pr-create':
       cmdPrCreate(config, args);
+      break;
+    case 'pr-update':
+      cmdPrUpdate(config, args[0], args.slice(1));
       break;
     case 'pr-approve':
       cmdPrApprove(config, args[0], args[1]);
