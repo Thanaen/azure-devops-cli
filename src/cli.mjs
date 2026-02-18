@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { buildPullRequestArtifactUrl, parseWorkItemIds } from './pr-workitems.mjs';
 
 const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
 const DEFAULT_PROJECT = '<your-project>';
@@ -305,26 +306,6 @@ function cmdBuilds(config, topRaw = '10') {
   for (const b of result?.value ?? []) {
     console.log(`#${b.id}\t${b.status}/${b.result ?? 'n/a'}\t${b.definition?.name ?? 'unknown'}\t${b.sourceBranch ?? ''}`);
   }
-}
-
-function parseWorkItemIds(rawValue) {
-  if (!rawValue) return [];
-
-  const ids = rawValue
-    .split(',')
-    .map((part) => Number(part.trim()))
-    .filter((id) => Number.isFinite(id) && id > 0);
-
-  return [...new Set(ids)];
-}
-
-function buildPullRequestArtifactUrl(pr) {
-  const projectId = pr?.repository?.project?.id;
-  const repoId = pr?.repository?.id;
-  const prId = pr?.pullRequestId;
-
-  if (!projectId || !repoId || !prId) return null;
-  return `vstfs:///Git/PullRequestId/${projectId}%2F${repoId}%2F${prId}`;
 }
 
 function linkWorkItemsToPr(config, repo, pr, workItemIds) {

@@ -6,7 +6,8 @@
   "scripts": {
     "ado": "bun src/cli.mjs",
     "check": "bun src/cli.mjs smoke",
-    "help": "bun src/cli.mjs help"
+    "help": "bun src/cli.mjs help",
+    "test": "node --test"
   },
   "bin": {
     "ado": "src/cli.mjs"
