@@ -53,7 +53,8 @@ bun src/cli.mjs help
 - `workitems-recent [top]`
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
-- `pr-create --title=... --source=... --target=... [--description=...] [--repo=...]`
+- `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`
+- `pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]`
 - `pr-approve <id> [repo]`
 - `pr-autocomplete <id> [repo]`
 - `builds [top]`

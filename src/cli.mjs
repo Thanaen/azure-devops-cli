@@ -26,7 +26,7 @@ function encodePathSegment(value) {
   return encodeURIComponent(value).replaceAll('%2F', '/');
 }
 
-function adoRequest(config, path, { method = 'GET', body } = {}) {
+function adoRequest(config, path, { method = 'GET', body, contentType = 'application/json' } = {}) {
   const url = `${config.collectionUrl}${path}${path.includes('?') ? '&' : '?'}api-version=${API_VERSION}`;
   const args = [
     '--silent',
@@ -34,7 +34,7 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
     '-u',
     `:${config.pat}`,
     '-H',
-    'Content-Type: application/json',
+    `Content-Type: ${contentType}`,
     '-X',
     method,
     url,
@@ -43,7 +43,7 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
   ];
 
   if (config.insecureTls) args.push('--insecure');
-  if (body) args.push('--data', JSON.stringify(body));
+  if (body !== undefined) args.push('--data', JSON.stringify(body));
 
   const result = spawnSync('curl', args, {
     encoding: 'utf8',
@@ -307,6 +307,58 @@ function cmdBuilds(config, topRaw = '10') {
   }
 }
 
+function parseWorkItemIds(rawValue) {
+  if (!rawValue) return [];
+
+  const ids = rawValue
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isFinite(id) && id > 0);
+
+  return [...new Set(ids)];
+}
+
+function buildPullRequestArtifactUrl(pr) {
+  const projectId = pr?.repository?.project?.id;
+  const repoId = pr?.repository?.id;
+  const prId = pr?.pullRequestId;
+
+  if (!projectId || !repoId || !prId) return null;
+  return `vstfs:///Git/PullRequestId/${projectId}%2F${repoId}%2F${prId}`;
+}
+
+function linkWorkItemsToPr(config, repo, pr, workItemIds) {
+  const artifactUrl = buildPullRequestArtifactUrl(pr);
+  if (!artifactUrl) {
+    throw new Error('Unable to resolve PR artifact URL required to link work items.');
+  }
+
+  for (const workItemId of workItemIds) {
+    const wiPath = `/${encodePathSegment(config.project)}/_apis/wit/workitems/${workItemId}`;
+    const patchBody = [
+      {
+        op: 'add',
+        path: '/relations/-',
+        value: {
+          rel: 'ArtifactLink',
+          url: artifactUrl,
+          attributes: {
+            name: 'Pull Request',
+          },
+        },
+      },
+    ];
+
+    adoRequest(config, wiPath, {
+      method: 'PATCH',
+      body: patchBody,
+      contentType: 'application/json-patch+json',
+    });
+
+    console.log(`Linked work item #${workItemId} to PR #${pr.pullRequestId}`);
+  }
+}
+
 function cmdPrCreate(config, args) {
   const kv = Object.fromEntries(args.map((arg) => {
     const [k, ...rest] = arg.split('=');
@@ -318,9 +370,10 @@ function cmdPrCreate(config, args) {
   const target = kv.target;
   const description = kv.description ?? '';
   const repo = pickRepo(config, kv.repo);
+  const workItemIds = parseWorkItemIds(kv['work-items']);
 
   if (!title || !source || !target) {
-    console.error('Usage: pr-create --title=... --source=feature/x --target=develop [--description=...] [--repo=...]');
+    console.error('Usage: pr-create --title=... --source=feature/x --target=develop [--description=...] [--repo=...] [--work-items=123,456]');
     process.exit(1);
   }
 
@@ -334,12 +387,17 @@ function cmdPrCreate(config, args) {
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests`;
   const created = adoRequest(config, path, { method: 'POST', body });
   console.log(`Created PR #${created.pullRequestId}: ${created.title}`);
+
+  if (workItemIds.length > 0) {
+    const createdPr = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${created.pullRequestId}`);
+    linkWorkItemsToPr(config, repo, createdPr, workItemIds);
+  }
 }
 
 function cmdPrUpdate(config, idRaw, args) {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
-    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...]');
+    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]');
     process.exit(1);
   }
 
@@ -350,22 +408,33 @@ function cmdPrUpdate(config, idRaw, args) {
 
   const repo = pickRepo(config, kv.repo);
   const body = {};
+  const workItemIds = parseWorkItemIds(kv['work-items']);
 
   if (kv.title !== undefined) body.title = kv.title;
   if (kv.description !== undefined) body.description = kv.description;
 
-  if (Object.keys(body).length === 0) {
-    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...]');
+  if (Object.keys(body).length === 0 && workItemIds.length === 0) {
+    console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]');
     process.exit(1);
   }
 
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
-  const updated = adoRequest(config, path, { method: 'PATCH', body });
-  console.log(`Updated PR #${updated.pullRequestId}: ${updated.title}`);
+  let updated;
+
+  if (Object.keys(body).length > 0) {
+    updated = adoRequest(config, path, { method: 'PATCH', body });
+    console.log(`Updated PR #${updated.pullRequestId}: ${updated.title}`);
+  } else {
+    updated = adoRequest(config, path);
+  }
+
+  if (workItemIds.length > 0) {
+    linkWorkItemsToPr(config, repo, updated, workItemIds);
+  }
 }
 
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...]\n  pr-update <id> [--title=...] [--description=...] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
