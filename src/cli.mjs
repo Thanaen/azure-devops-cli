@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 
-const DEFAULT_COLLECTION_URL = 'https://devserver2/DefaultCollection';
-const DEFAULT_PROJECT = 'UserLock';
-const DEFAULT_REPO = 'Ulysse Interface';
+const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
+const DEFAULT_PROJECT = '<your-project>';
+const DEFAULT_REPO = '<your-repository>';
 const API_VERSION = '7.0';
 
 function getConfig() {
@@ -18,6 +18,7 @@ function getConfig() {
     collectionUrl: process.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL,
     project: process.env.ADO_PROJECT ?? DEFAULT_PROJECT,
     repo: process.env.ADO_REPO ?? DEFAULT_REPO,
+    insecureTls: process.env.ADO_INSECURE === '1',
   };
 }
 
@@ -30,7 +31,6 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
   const args = [
     '--silent',
     '--show-error',
-    '--insecure',
     '-u',
     `:${config.pat}`,
     '-H',
@@ -42,6 +42,7 @@ function adoRequest(config, path, { method = 'GET', body } = {}) {
     '\n__HTTP_STATUS__:%{http_code}',
   ];
 
+  if (config.insecureTls) args.push('--insecure');
   if (body) args.push('--data', JSON.stringify(body));
 
   const result = spawnSync('curl', args, {

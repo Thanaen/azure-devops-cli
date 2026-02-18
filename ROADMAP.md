@@ -31,4 +31,4 @@
 
 6. **Validation + tests**
    - Unit tests for command parsing and request builder
-   - Contract smoke tests against devserver2
+   - Contract smoke tests against a dedicated integration environment

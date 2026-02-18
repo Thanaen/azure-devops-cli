@@ -1,22 +1,47 @@
 # azure-devops-cli
 
-Tiny Bun-first CLI for Azure DevOps REST API.
+Lightweight CLI for Azure DevOps REST workflows (repos, branches, work items, PRs, builds).
 
-## Required env
+## Why this exists
 
-- `DEVOPS_PAT` (required)
+This project provides a tiny scriptable command layer over the Azure DevOps REST API so automation agents and developers can run common actions quickly without rewriting `curl` calls.
 
-## Optional env
+## Requirements
 
-- `ADO_COLLECTION_URL` (default: `https://devserver2/DefaultCollection`)
-- `ADO_PROJECT` (default: `UserLock`)
-- `ADO_REPO` (default: `Ulysse Interface`)
+- Node.js 18+ (or Bun)
+- `curl`
+- An Azure DevOps Personal Access Token (PAT)
+
+## Configuration
+
+Set environment variables before running commands:
+
+- `DEVOPS_PAT` **(required)**
+- `ADO_COLLECTION_URL` (default: `https://dev.azure.com/<your-org>`)
+- `ADO_PROJECT` (default: `<your-project>`)
+- `ADO_REPO` (default: `<your-repository>`)
+- `ADO_INSECURE=1` (optional; only for self-signed TLS environments)
+
+Example:
+
+```bash
+export DEVOPS_PAT="***"
+export ADO_COLLECTION_URL="https://dev.azure.com/acme"
+export ADO_PROJECT="MyProject"
+export ADO_REPO="MyRepo"
+```
 
 ## Usage
 
 ```bash
+node src/cli.mjs help
+node src/cli.mjs smoke
+```
+
+(or with Bun)
+
+```bash
 bun src/cli.mjs help
-bun src/cli.mjs smoke
 ```
 
 ## Commands
@@ -33,11 +58,16 @@ bun src/cli.mjs smoke
 - `pr-autocomplete <id> [repo]`
 - `builds [top]`
 
-## Exposed command
+## Agent skill included
 
-A wrapper is installed at `~/.local/bin/ado` so I can call it quickly from anywhere:
+A reusable agent skill is included at:
 
-```bash
-ado smoke
-ado prs active 5
-```
+- `skills/ado-workflows/SKILL.md`
+
+This helps OpenClaw-compatible agents run consistent Azure DevOps workflows using this CLI.
+
+## Security notes
+
+- Never commit your PAT.
+- Prefer setting secrets through runtime environment injection.
+- `ADO_INSECURE=1` should only be used in trusted internal environments.
