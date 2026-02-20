@@ -32,3 +32,7 @@
 6. **Validation + tests**
    - Unit tests for command parsing and request builder
    - Contract smoke tests against a dedicated integration environment
+
+7. **Client layer migration (optional)**
+   - Evaluate replacing raw curl calls with `azure-devops-node-api` for typed clients, auth handling, retries, and safer comment/work item operations.
+   - Keep current CLI endpoints stable while progressively migrating internals.
