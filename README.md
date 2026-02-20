@@ -50,7 +50,7 @@ bun src/cli.mjs help
 - `repos`
 - `branches [repo]`
 - `workitem-get <id>`
-- `workitems-recent [top]`
+- `workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]`
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`
@@ -58,6 +58,16 @@ bun src/cli.mjs help
 - `pr-approve <id> [repo]`
 - `pr-autocomplete <id> [repo]`
 - `builds [top]`
+
+Examples:
+
+```bash
+# 20 derniers bugs taggés "bot"
+ado workitems-recent 20 --type=Bug --tag=bot
+
+# Bugs "bot" encore en état New
+ado workitems-recent --type=Bug --tag=bot --state=New
+```
 
 ## Agent skill included
 

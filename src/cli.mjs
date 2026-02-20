@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import { buildPullRequestArtifactUrl, parseWorkItemIds } from './pr-workitems.mjs';
+import { buildRecentWorkItemsWiql, parseWorkItemsRecentArgs } from './workitems-query.mjs';
 
 const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
 const DEFAULT_PROJECT = '<your-project>';
@@ -154,14 +155,22 @@ function cmdWorkItemGet(config, idRaw) {
   }, null, 2));
 }
 
-function cmdWorkItemsRecent(config, topRaw = '10') {
-  const top = Number(topRaw);
-  const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
+function cmdWorkItemsRecent(config, args = []) {
+  let parsedArgs;
+
+  try {
+    parsedArgs = parseWorkItemsRecentArgs(args);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    console.error('Usage: workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]');
+    process.exit(1);
+  }
+
   const wiql = {
-    query: `SELECT [System.Id] FROM WorkItems ORDER BY [System.ChangedDate] DESC`,
+    query: buildRecentWorkItemsWiql(parsedArgs.filters),
   };
 
-  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=${boundedTop}`, {
+  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=${parsedArgs.top}`, {
     method: 'POST',
     body: wiql,
   });
@@ -415,7 +424,7 @@ function cmdPrUpdate(config, idRaw, args) {
 }
 
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
@@ -436,7 +445,7 @@ function main() {
       cmdWorkItemGet(config, args[0]);
       break;
     case 'workitems-recent':
-      cmdWorkItemsRecent(config, args[0]);
+      cmdWorkItemsRecent(config, args);
       break;
     case 'prs':
       cmdPrs(config, args[0], args[1], args[2]);

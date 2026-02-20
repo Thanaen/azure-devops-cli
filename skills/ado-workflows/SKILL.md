@@ -22,6 +22,7 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 - List branches: `node src/cli.mjs branches "MyRepo"`
 - Get work item: `node src/cli.mjs workitem-get <id>`
 - List recent work items: `node src/cli.mjs workitems-recent 10`
+- List recent work items filtered by tag/type/state: `node src/cli.mjs workitems-recent 20 --type=Bug --tag=bot --state=New`
 - List PRs: `node src/cli.mjs prs active 10 "MyRepo"`
 - Get PR: `node src/cli.mjs pr-get <id> "MyRepo"`
 - Create PR: `node src/cli.mjs pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo"`
