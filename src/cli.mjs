@@ -8,6 +8,10 @@ const DEFAULT_PROJECT = '<your-project>';
 const DEFAULT_REPO = '<your-repository>';
 const API_VERSION = '7.0';
 
+function isDefaultPlaceholder(value) {
+  return typeof value === 'string' && value.includes('<your-');
+}
+
 function getConfig() {
   const pat = process.env.DEVOPS_PAT;
   if (!pat) {
@@ -15,11 +19,21 @@ function getConfig() {
     process.exit(1);
   }
 
+  const collectionUrl = process.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL;
+  const project = process.env.ADO_PROJECT ?? DEFAULT_PROJECT;
+  const repo = process.env.ADO_REPO ?? DEFAULT_REPO;
+
+  if (isDefaultPlaceholder(collectionUrl) || isDefaultPlaceholder(project) || isDefaultPlaceholder(repo)) {
+    console.error('ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.');
+    console.error('Example: ADO_COLLECTION_URL="https://devserver2/DefaultCollection" ADO_PROJECT="UserLock" ADO_REPO="Ulysse Interface"');
+    process.exit(1);
+  }
+
   return {
     pat,
-    collectionUrl: process.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL,
-    project: process.env.ADO_PROJECT ?? DEFAULT_PROJECT,
-    repo: process.env.ADO_REPO ?? DEFAULT_REPO,
+    collectionUrl,
+    project,
+    repo,
     insecureTls: process.env.ADO_INSECURE === '1',
   };
 }

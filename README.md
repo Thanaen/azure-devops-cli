@@ -31,6 +31,16 @@ export ADO_PROJECT="MyProject"
 export ADO_REPO="MyRepo"
 ```
 
+On-prem / devserver2 example:
+
+```bash
+export DEVOPS_PAT="***"
+export ADO_COLLECTION_URL="https://devserver2/DefaultCollection"
+export ADO_PROJECT="UserLock"
+export ADO_REPO="Ulysse Interface"
+export ADO_INSECURE=1
+```
+
 ## Usage
 
 ```bash
@@ -82,3 +92,8 @@ This helps OpenClaw-compatible agents run consistent Azure DevOps workflows usin
 - Never commit your PAT.
 - Prefer setting secrets through runtime environment injection.
 - `ADO_INSECURE=1` should only be used in trusted internal environments.
+
+## Troubleshooting
+
+- `400 Bad Request - Invalid URL` at startup usually means one of `ADO_COLLECTION_URL`, `ADO_PROJECT`, or `ADO_REPO` is still using placeholder defaults.
+- If strict TLS fails on internal servers, validate reachability with `scripts/devserver2-reachability.mjs` from the workspace, then use `ADO_INSECURE=1` only when appropriate.

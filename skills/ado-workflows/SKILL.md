@@ -13,6 +13,7 @@ Use this repository CLI (`node src/cli.mjs`) instead of ad-hoc curl commands.
    - `test -n "$DEVOPS_PAT" && echo OK || echo MISSING`
 2. Verify connectivity:
    - `node src/cli.mjs smoke`
+   - If needed, run an independent host check (outside the CLI) to distinguish network issues from ADO config issues.
 
 If auth is missing, stop and ask for `DEVOPS_PAT`.
 
