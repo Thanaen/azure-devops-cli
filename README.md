@@ -59,8 +59,10 @@ bun src/cli.mjs help
 - `smoke`
 - `repos`
 - `branches [repo]`
-- `workitem-get <id>`
+- `workitem-get <id> [--raw] [--expand=all|fields|links|relations]`
 - `workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]`
+- `workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]`
+- `workitem-comment-add <id> --text="..." [--file=path]`
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`

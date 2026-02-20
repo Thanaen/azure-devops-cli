@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { buildPullRequestArtifactUrl, parseWorkItemIds } from './pr-workitems.mjs';
-import { buildRecentWorkItemsWiql, parseWorkItemsRecentArgs } from './workitems-query.mjs';
+import { buildRecentWorkItemsWiql, parseOptionArgs, parseWorkItemsRecentArgs } from './workitems-query.mjs';
 
 const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
 const DEFAULT_PROJECT = '<your-project>';
 const DEFAULT_REPO = '<your-repository>';
 const API_VERSION = '7.0';
+const COMMENTS_API_VERSION = '7.0-preview.3';
 
 function isDefaultPlaceholder(value) {
   return typeof value === 'string' && value.includes('<your-');
@@ -42,8 +44,13 @@ function encodePathSegment(value) {
   return encodeURIComponent(value).replaceAll('%2F', '/');
 }
 
-function adoRequest(config, path, { method = 'GET', body, contentType = 'application/json' } = {}) {
-  const url = `${config.collectionUrl}${path}${path.includes('?') ? '&' : '?'}api-version=${API_VERSION}`;
+function adoRequest(config, path, {
+  method = 'GET',
+  body,
+  contentType = 'application/json',
+  apiVersion = API_VERSION,
+} = {}) {
+  const url = `${config.collectionUrl}${path}${path.includes('?') ? '&' : '?'}api-version=${apiVersion}`;
   const args = [
     '--silent',
     '--show-error',
@@ -150,14 +157,45 @@ function cmdBranches(config, repoArg) {
   }
 }
 
-function cmdWorkItemGet(config, idRaw) {
+function cmdWorkItemGet(config, idRaw, args = []) {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
-    console.error('Usage: workitem-get <id>');
+    console.error('Usage: workitem-get <id> [--raw] [--expand=all|fields|links|relations]');
     process.exit(1);
   }
 
-  const result = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}`);
+  const { options, positionals } = parseOptionArgs(args);
+  const allowedOptions = new Set(['raw', 'expand']);
+
+  for (const key of Object.keys(options)) {
+    if (!allowedOptions.has(key)) {
+      console.error(`Unknown option for workitem-get: --${key}`);
+      console.error('Usage: workitem-get <id> [--raw] [--expand=all|fields|links|relations]');
+      process.exit(1);
+    }
+  }
+
+  if (positionals.length > 0) {
+    console.error('Usage: workitem-get <id> [--raw] [--expand=all|fields|links|relations]');
+    process.exit(1);
+  }
+
+  const rawOutput = options.raw === true || options.raw === 'true' || options.raw === '1';
+  const expand = typeof options.expand === 'string' && options.expand.trim().length > 0
+    ? options.expand.trim()
+    : undefined;
+
+  const queryParts = [];
+  if (expand) queryParts.push(`$expand=${encodeURIComponent(expand)}`);
+  const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+  const result = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}${query}`);
+
+  if (rawOutput) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
   console.log(JSON.stringify({
     id: result.id,
     title: result.fields?.['System.Title'],
@@ -192,6 +230,89 @@ function cmdWorkItemsRecent(config, args = []) {
   for (const wi of wiqlResult?.workItems ?? []) {
     console.log(wi.id);
   }
+}
+
+function cmdWorkItemComments(config, idRaw, args = []) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    console.error('Usage: workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]');
+    process.exit(1);
+  }
+
+  const { options, positionals } = parseOptionArgs(args);
+  const allowedOptions = new Set(['top', 'order']);
+  for (const key of Object.keys(options)) {
+    if (!allowedOptions.has(key)) {
+      console.error(`Unknown option for workitem-comments: --${key}`);
+      console.error('Usage: workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]');
+      process.exit(1);
+    }
+  }
+
+  if (positionals.length > 1) {
+    console.error('Usage: workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]');
+    process.exit(1);
+  }
+
+  const topCandidate = options.top ?? positionals[0] ?? '50';
+  const top = Number(topCandidate);
+  const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 200) : 50;
+
+  const orderRaw = typeof options.order === 'string' ? options.order.trim().toLowerCase() : 'desc';
+  const order = orderRaw === 'asc' ? 'asc' : 'desc';
+
+  const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments?$top=${boundedTop}&order=${order}`;
+  const result = adoRequest(config, path, { apiVersion: COMMENTS_API_VERSION });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+function cmdWorkItemCommentAdd(config, idRaw, args = []) {
+  const id = Number(idRaw);
+  if (!Number.isFinite(id)) {
+    console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+    process.exit(1);
+  }
+
+  const { options, positionals } = parseOptionArgs(args);
+  const allowedOptions = new Set(['text', 'file']);
+  for (const key of Object.keys(options)) {
+    if (!allowedOptions.has(key)) {
+      console.error(`Unknown option for workitem-comment-add: --${key}`);
+      console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+      process.exit(1);
+    }
+  }
+
+  if (positionals.length > 0) {
+    console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+    process.exit(1);
+  }
+
+  let text = typeof options.text === 'string' ? options.text : undefined;
+  if ((!text || text.trim().length === 0) && typeof options.file === 'string') {
+    text = readFileSync(options.file, 'utf8');
+  }
+
+  if (!text || text.trim().length === 0) {
+    console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+    console.error('Either --text or --file must provide a non-empty comment body.');
+    process.exit(1);
+  }
+
+  const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments`;
+  const result = adoRequest(config, path, {
+    method: 'POST',
+    body: { text },
+    apiVersion: COMMENTS_API_VERSION,
+  });
+
+  console.log(JSON.stringify({
+    id: result?.id ?? null,
+    workItemId: id,
+    createdBy: result?.createdBy?.displayName ?? null,
+    createdDate: result?.createdDate ?? null,
+    text: result?.text ?? text,
+  }, null, 2));
 }
 
 function cmdPrs(config, status = 'active', topRaw = '10', repoArg) {
@@ -438,12 +559,18 @@ function cmdPrUpdate(config, idRaw, args) {
 }
 
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id>\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
-  const config = getConfig();
   const [command = 'smoke', ...args] = process.argv.slice(2);
+
+  if (command === 'help' || command === '--help' || command === '-h') {
+    printHelp();
+    return;
+  }
+
+  const config = getConfig();
 
   switch (command) {
     case 'smoke':
@@ -456,10 +583,16 @@ function main() {
       cmdBranches(config, args[0]);
       break;
     case 'workitem-get':
-      cmdWorkItemGet(config, args[0]);
+      cmdWorkItemGet(config, args[0], args.slice(1));
       break;
     case 'workitems-recent':
       cmdWorkItemsRecent(config, args);
+      break;
+    case 'workitem-comments':
+      cmdWorkItemComments(config, args[0], args.slice(1));
+      break;
+    case 'workitem-comment-add':
+      cmdWorkItemCommentAdd(config, args[0], args.slice(1));
       break;
     case 'prs':
       cmdPrs(config, args[0], args[1], args[2]);
@@ -481,11 +614,6 @@ function main() {
       break;
     case 'builds':
       cmdBuilds(config, args[0]);
-      break;
-    case 'help':
-    case '--help':
-    case '-h':
-      printHelp();
       break;
     default:
       console.error(`Unknown command: ${command}`);
