@@ -63,6 +63,7 @@ bun src/cli.mjs help
 - `workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]`
 - `workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]`
 - `workitem-comment-add <id> --text="..." [--file=path]`
+- `workitem-comment-update <id> <commentId> --text="..." [--file=path]`
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`
@@ -79,6 +80,9 @@ ado workitems-recent 20 --type=Bug --tag=bot
 
 # Bugs "bot" encore en état New
 ado workitems-recent --type=Bug --tag=bot --state=New
+
+# Mettre à jour un commentaire existant (dédup)
+ado workitem-comment-update 20485 12527 --file=./comment.md
 ```
 
 ## Agent skill included

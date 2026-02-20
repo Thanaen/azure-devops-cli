@@ -27,6 +27,7 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 - List recent work items filtered by tag/type/state: `node src/cli.mjs workitems-recent 20 --type=Bug --tag=bot --state=New`
 - List comments on a work item: `node src/cli.mjs workitem-comments <id> --top=100 --order=desc`
 - Add a comment on a work item: `node src/cli.mjs workitem-comment-add <id> --text="..."`
+- Update an existing comment on a work item: `node src/cli.mjs workitem-comment-update <id> <commentId> --text="..."`
 - List PRs: `node src/cli.mjs prs active 10 "MyRepo"`
 - Get PR: `node src/cli.mjs pr-get <id> "MyRepo"`
 - Create PR: `node src/cli.mjs pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo"`

@@ -266,6 +266,21 @@ function cmdWorkItemComments(config, idRaw, args = []) {
   console.log(JSON.stringify(result, null, 2));
 }
 
+function resolveCommentText(options, usage) {
+  let text = typeof options.text === 'string' ? options.text : undefined;
+  if ((!text || text.trim().length === 0) && typeof options.file === 'string') {
+    text = readFileSync(options.file, 'utf8');
+  }
+
+  if (!text || text.trim().length === 0) {
+    console.error(usage);
+    console.error('Either --text or --file must provide a non-empty comment body.');
+    process.exit(1);
+  }
+
+  return text;
+}
+
 function cmdWorkItemCommentAdd(config, idRaw, args = []) {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
@@ -273,31 +288,23 @@ function cmdWorkItemCommentAdd(config, idRaw, args = []) {
     process.exit(1);
   }
 
+  const usage = 'Usage: workitem-comment-add <id> --text="..." [--file=path]';
   const { options, positionals } = parseOptionArgs(args);
   const allowedOptions = new Set(['text', 'file']);
   for (const key of Object.keys(options)) {
     if (!allowedOptions.has(key)) {
       console.error(`Unknown option for workitem-comment-add: --${key}`);
-      console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+      console.error(usage);
       process.exit(1);
     }
   }
 
   if (positionals.length > 0) {
-    console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
+    console.error(usage);
     process.exit(1);
   }
 
-  let text = typeof options.text === 'string' ? options.text : undefined;
-  if ((!text || text.trim().length === 0) && typeof options.file === 'string') {
-    text = readFileSync(options.file, 'utf8');
-  }
-
-  if (!text || text.trim().length === 0) {
-    console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
-    console.error('Either --text or --file must provide a non-empty comment body.');
-    process.exit(1);
-  }
+  const text = resolveCommentText(options, usage);
 
   const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments`;
   const result = adoRequest(config, path, {
@@ -311,6 +318,49 @@ function cmdWorkItemCommentAdd(config, idRaw, args = []) {
     workItemId: id,
     createdBy: result?.createdBy?.displayName ?? null,
     createdDate: result?.createdDate ?? null,
+    text: result?.text ?? text,
+  }, null, 2));
+}
+
+function cmdWorkItemCommentUpdate(config, idRaw, commentIdRaw, args = []) {
+  const id = Number(idRaw);
+  const commentId = Number(commentIdRaw);
+
+  if (!Number.isFinite(id) || !Number.isFinite(commentId)) {
+    console.error('Usage: workitem-comment-update <id> <commentId> --text="..." [--file=path]');
+    process.exit(1);
+  }
+
+  const usage = 'Usage: workitem-comment-update <id> <commentId> --text="..." [--file=path]';
+  const { options, positionals } = parseOptionArgs(args);
+  const allowedOptions = new Set(['text', 'file']);
+  for (const key of Object.keys(options)) {
+    if (!allowedOptions.has(key)) {
+      console.error(`Unknown option for workitem-comment-update: --${key}`);
+      console.error(usage);
+      process.exit(1);
+    }
+  }
+
+  if (positionals.length > 0) {
+    console.error(usage);
+    process.exit(1);
+  }
+
+  const text = resolveCommentText(options, usage);
+
+  const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments/${commentId}`;
+  const result = adoRequest(config, path, {
+    method: 'PATCH',
+    body: { text },
+    apiVersion: COMMENTS_API_VERSION,
+  });
+
+  console.log(JSON.stringify({
+    id: result?.id ?? commentId,
+    workItemId: id,
+    modifiedBy: result?.modifiedBy?.displayName ?? null,
+    modifiedDate: result?.modifiedDate ?? null,
     text: result?.text ?? text,
   }, null, 2));
 }
@@ -559,7 +609,7 @@ function cmdPrUpdate(config, idRaw, args) {
 }
 
 function printHelp() {
-  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
+  console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
 function main() {
@@ -593,6 +643,9 @@ function main() {
       break;
     case 'workitem-comment-add':
       cmdWorkItemCommentAdd(config, args[0], args.slice(1));
+      break;
+    case 'workitem-comment-update':
+      cmdWorkItemCommentUpdate(config, args[0], args[1], args.slice(2));
       break;
     case 'prs':
       cmdPrs(config, args[0], args[1], args[2]);
