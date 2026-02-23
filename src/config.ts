@@ -1,17 +1,18 @@
-import type { AdoConfig } from './types.ts';
+import { WebApi, getPersonalAccessTokenHandler } from "azure-devops-node-api";
+import type { AdoConfig } from "./types.ts";
 
-const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
-const DEFAULT_PROJECT = '<your-project>';
-const DEFAULT_REPO = '<your-repository>';
+const DEFAULT_COLLECTION_URL = "https://dev.azure.com/<your-org>";
+const DEFAULT_PROJECT = "<your-project>";
+const DEFAULT_REPO = "<your-repository>";
 
 function isDefaultPlaceholder(value: string): boolean {
-  return value.includes('<your-');
+  return value.includes("<your-");
 }
 
 export function getConfig(): AdoConfig {
   const pat = Bun.env.DEVOPS_PAT;
   if (!pat) {
-    console.error('Missing DEVOPS_PAT environment variable.');
+    console.error("Missing DEVOPS_PAT environment variable.");
     process.exit(1);
   }
 
@@ -19,17 +20,32 @@ export function getConfig(): AdoConfig {
   const project = Bun.env.ADO_PROJECT ?? DEFAULT_PROJECT;
   const repo = Bun.env.ADO_REPO ?? DEFAULT_REPO;
 
-  if (isDefaultPlaceholder(collectionUrl) || isDefaultPlaceholder(project) || isDefaultPlaceholder(repo)) {
-    console.error('ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.');
-    console.error('Example: ADO_COLLECTION_URL="https://devserver2/DefaultCollection" ADO_PROJECT="UserLock" ADO_REPO="Ulysse Interface"');
+  if (
+    isDefaultPlaceholder(collectionUrl) ||
+    isDefaultPlaceholder(project) ||
+    isDefaultPlaceholder(repo)
+  ) {
+    console.error(
+      "ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.",
+    );
+    console.error(
+      'Example: ADO_COLLECTION_URL="https://devserver2/DefaultCollection" ADO_PROJECT="UserLock" ADO_REPO="Ulysse Interface"',
+    );
     process.exit(1);
   }
+
+  if (Bun.env.ADO_INSECURE === "1") {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+  }
+
+  const authHandler = getPersonalAccessTokenHandler(pat);
+  const connection = new WebApi(collectionUrl, authHandler);
 
   return {
     pat,
     collectionUrl,
     project,
     repo,
-    insecureTls: Bun.env.ADO_INSECURE === '1',
+    connection,
   };
 }

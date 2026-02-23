@@ -2,7 +2,7 @@ export function parseWorkItemIds(rawValue: string | null | undefined): number[] 
   if (!rawValue) return [];
 
   const ids = rawValue
-    .split(',')
+    .split(",")
     .map((part) => Number(part.trim()))
     .filter((id) => Number.isFinite(id) && id > 0);
 
@@ -10,7 +10,10 @@ export function parseWorkItemIds(rawValue: string | null | undefined): number[] 
 }
 
 export function buildPullRequestArtifactUrl(
-  pr: { pullRequestId?: number; repository?: { id?: string; project?: { id?: string } } } | null | undefined,
+  pr:
+    | { pullRequestId?: number; repository?: { id?: string; project?: { id?: string } } }
+    | null
+    | undefined,
 ): string | null {
   const projectId = pr?.repository?.project?.id;
   const repoId = pr?.repository?.id;

@@ -1,0 +1,11 @@
+pre-commit:
+  parallel: false
+  commands:
+    fmt:
+      glob: "*.{ts,js,mjs,cjs,json,jsonc}"
+      run: bun run fmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    lint-fix:
+      glob: "*.{ts,js,mjs,cjs}"
+      run: bun run lint:fix {staged_files}
+      stage_fixed: true
