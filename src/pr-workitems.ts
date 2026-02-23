@@ -1,4 +1,4 @@
-export function parseWorkItemIds(rawValue) {
+export function parseWorkItemIds(rawValue: string | null | undefined): number[] {
   if (!rawValue) return [];
 
   const ids = rawValue
@@ -9,7 +9,9 @@ export function parseWorkItemIds(rawValue) {
   return [...new Set(ids)];
 }
 
-export function buildPullRequestArtifactUrl(pr) {
+export function buildPullRequestArtifactUrl(
+  pr: { pullRequestId?: number; repository?: { id?: string; project?: { id?: string } } } | null | undefined,
+): string | null {
   const projectId = pr?.repository?.project?.id;
   const repoId = pr?.repository?.id;
   const prId = pr?.pullRequestId;

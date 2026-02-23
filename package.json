@@ -4,12 +4,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ado": "bun src/cli.mjs",
-    "check": "bun src/cli.mjs smoke",
-    "help": "bun src/cli.mjs help",
-    "test": "node --test"
+    "ado": "bun src/cli.ts",
+    "check": "bun src/cli.ts smoke",
+    "help": "bun src/cli.ts help",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build": "bun build src/cli.ts --compile --outfile ado"
   },
   "bin": {
-    "ado": "src/cli.mjs"
+    "ado": "src/cli.ts"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5"
   }
 }

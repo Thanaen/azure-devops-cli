@@ -1,108 +1,32 @@
-#!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { buildPullRequestArtifactUrl, parseWorkItemIds } from './pr-workitems.mjs';
-import { buildRecentWorkItemsWiql, parseOptionArgs, parseWorkItemsRecentArgs } from './workitems-query.mjs';
+#!/usr/bin/env bun
+import { getConfig } from './config.ts';
+import { adoRequest, encodePathSegment, COMMENTS_API_VERSION } from './api.ts';
+import { buildPullRequestArtifactUrl, parseWorkItemIds } from './pr-workitems.ts';
+import { buildRecentWorkItemsWiql, parseOptionArgs, parseWorkItemsRecentArgs } from './workitems-query.ts';
+import type {
+  AdoConfig,
+  AdoWorkItem,
+  AdoWiqlResult,
+  AdoPullRequest,
+  AdoListResponse,
+  AdoGitRef,
+  AdoBuild,
+  AdoCommentList,
+  AdoComment,
+  AdoIdentityRef,
+  AdoPolicyConfiguration,
+} from './types.ts';
 
-const DEFAULT_COLLECTION_URL = 'https://dev.azure.com/<your-org>';
-const DEFAULT_PROJECT = '<your-project>';
-const DEFAULT_REPO = '<your-repository>';
-const API_VERSION = '7.0';
-const COMMENTS_API_VERSION = '7.0-preview.3';
-
-function isDefaultPlaceholder(value) {
-  return typeof value === 'string' && value.includes('<your-');
-}
-
-function getConfig() {
-  const pat = process.env.DEVOPS_PAT;
-  if (!pat) {
-    console.error('Missing DEVOPS_PAT environment variable.');
-    process.exit(1);
-  }
-
-  const collectionUrl = process.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL;
-  const project = process.env.ADO_PROJECT ?? DEFAULT_PROJECT;
-  const repo = process.env.ADO_REPO ?? DEFAULT_REPO;
-
-  if (isDefaultPlaceholder(collectionUrl) || isDefaultPlaceholder(project) || isDefaultPlaceholder(repo)) {
-    console.error('ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.');
-    console.error('Example: ADO_COLLECTION_URL="https://devserver2/DefaultCollection" ADO_PROJECT="UserLock" ADO_REPO="Ulysse Interface"');
-    process.exit(1);
-  }
-
-  return {
-    pat,
-    collectionUrl,
-    project,
-    repo,
-    insecureTls: process.env.ADO_INSECURE === '1',
-  };
-}
-
-function encodePathSegment(value) {
-  return encodeURIComponent(value).replaceAll('%2F', '/');
-}
-
-function adoRequest(config, path, {
-  method = 'GET',
-  body,
-  contentType = 'application/json',
-  apiVersion = API_VERSION,
-} = {}) {
-  const url = `${config.collectionUrl}${path}${path.includes('?') ? '&' : '?'}api-version=${apiVersion}`;
-  const args = [
-    '--silent',
-    '--show-error',
-    '-u',
-    `:${config.pat}`,
-    '-H',
-    `Content-Type: ${contentType}`,
-    '-X',
-    method,
-    url,
-    '--write-out',
-    '\n__HTTP_STATUS__:%{http_code}',
-  ];
-
-  if (config.insecureTls) args.push('--insecure');
-  if (body !== undefined) args.push('--data', JSON.stringify(body));
-
-  const result = spawnSync('curl', args, {
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
-  });
-
-  if (result.error) {
-    throw new Error(`curl failed to execute: ${result.error.message}`);
-  }
-
-  const raw = result.stdout ?? '';
-  const marker = '\n__HTTP_STATUS__:';
-  const markerIndex = raw.lastIndexOf(marker);
-  const responseBody = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
-  const statusCode = markerIndex >= 0 ? Number(raw.slice(markerIndex + marker.length).trim()) : NaN;
-
-  if (!Number.isFinite(statusCode) || statusCode < 200 || statusCode >= 300) {
-    const preview = (responseBody || result.stderr || '').trim().slice(0, 350);
-    throw new Error(
-      `Azure DevOps API request failed (${Number.isFinite(statusCode) ? statusCode : 'unknown status'}). ${preview}`,
-    );
-  }
-
-  return responseBody ? JSON.parse(responseBody) : null;
-}
-
-function pickRepo(config, value) {
+function pickRepo(config: AdoConfig, value?: string): string {
   return value || config.repo;
 }
 
-function getLatestWorkItem(config) {
+async function getLatestWorkItem(config: AdoConfig): Promise<AdoWorkItem | null> {
   const wiql = {
     query: 'SELECT [System.Id] FROM WorkItems ORDER BY [System.ChangedDate] DESC',
   };
 
-  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=1`, {
+  const wiqlResult = await adoRequest<AdoWiqlResult>(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=1`, {
     method: 'POST',
     body: wiql,
   });
@@ -110,24 +34,24 @@ function getLatestWorkItem(config) {
   const id = wiqlResult?.workItems?.[0]?.id;
   if (!id) return null;
 
-  return adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}`);
+  return adoRequest<AdoWorkItem>(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}`);
 }
 
-function getLatestPullRequest(config, repo) {
+async function getLatestPullRequest(config: AdoConfig, repo: string): Promise<AdoPullRequest | null> {
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests?searchCriteria.status=all&$top=1`;
-  const result = adoRequest(config, path);
+  const result = await adoRequest<AdoListResponse<AdoPullRequest>>(config, path);
   return result?.value?.[0] ?? null;
 }
 
-function cmdSmoke(config) {
+async function cmdSmoke(config: AdoConfig): Promise<void> {
   const repo = pickRepo(config);
-  const workItem = getLatestWorkItem(config);
-  const pullRequest = getLatestPullRequest(config, repo);
+  const workItem = await getLatestWorkItem(config);
+  const pullRequest = await getLatestPullRequest(config, repo);
 
   console.log('Azure DevOps connectivity check');
   console.log('--------------------------------');
   if (workItem) {
-    console.log(`Work item: #${workItem.id} - ${workItem.fields?.['System.Title'] ?? '(no title)'}`);
+    console.log(`Work item: #${workItem.id} - ${(workItem.fields?.['System.Title'] as string) ?? '(no title)'}`);
   } else {
     console.log('Work item: none found');
   }
@@ -139,25 +63,25 @@ function cmdSmoke(config) {
   }
 }
 
-function cmdRepos(config) {
+async function cmdRepos(config: AdoConfig): Promise<void> {
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories?$top=100`;
-  const result = adoRequest(config, path);
+  const result = await adoRequest<AdoListResponse<{ id?: string; name?: string }>>(config, path);
   for (const repo of result?.value ?? []) {
     console.log(`${repo.id}\t${repo.name}`);
   }
 }
 
-function cmdBranches(config, repoArg) {
+async function cmdBranches(config: AdoConfig, repoArg?: string): Promise<void> {
   const repo = pickRepo(config, repoArg);
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/refs?filter=heads/&$top=200`;
-  const result = adoRequest(config, path);
+  const result = await adoRequest<AdoListResponse<AdoGitRef>>(config, path);
   for (const ref of result?.value ?? []) {
     const name = String(ref.name || '').replace('refs/heads/', '');
     console.log(name);
   }
 }
 
-function cmdWorkItemGet(config, idRaw, args = []) {
+async function cmdWorkItemGet(config: AdoConfig, idRaw: string | undefined, args: string[] = []): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: workitem-get <id> [--raw] [--expand=all|fields|links|relations]');
@@ -185,11 +109,11 @@ function cmdWorkItemGet(config, idRaw, args = []) {
     ? options.expand.trim()
     : undefined;
 
-  const queryParts = [];
+  const queryParts: string[] = [];
   if (expand) queryParts.push(`$expand=${encodeURIComponent(expand)}`);
   const query = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
 
-  const result = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}${query}`);
+  const result = await adoRequest<AdoWorkItem>(config, `/${encodePathSegment(config.project)}/_apis/wit/workitems/${id}${query}`);
 
   if (rawOutput) {
     console.log(JSON.stringify(result, null, 2));
@@ -197,17 +121,17 @@ function cmdWorkItemGet(config, idRaw, args = []) {
   }
 
   console.log(JSON.stringify({
-    id: result.id,
-    title: result.fields?.['System.Title'],
-    state: result.fields?.['System.State'],
-    type: result.fields?.['System.WorkItemType'],
-    assignedTo: result.fields?.['System.AssignedTo']?.displayName ?? null,
-    changedDate: result.fields?.['System.ChangedDate'],
-    url: result.url,
+    id: result?.id,
+    title: result?.fields?.['System.Title'],
+    state: result?.fields?.['System.State'],
+    type: result?.fields?.['System.WorkItemType'],
+    assignedTo: (result?.fields?.['System.AssignedTo'] as AdoIdentityRef | null)?.displayName ?? null,
+    changedDate: result?.fields?.['System.ChangedDate'],
+    url: result?.url,
   }, null, 2));
 }
 
-function cmdWorkItemsRecent(config, args = []) {
+async function cmdWorkItemsRecent(config: AdoConfig, args: string[] = []): Promise<void> {
   let parsedArgs;
 
   try {
@@ -222,7 +146,7 @@ function cmdWorkItemsRecent(config, args = []) {
     query: buildRecentWorkItemsWiql(parsedArgs.filters),
   };
 
-  const wiqlResult = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=${parsedArgs.top}`, {
+  const wiqlResult = await adoRequest<AdoWiqlResult>(config, `/${encodePathSegment(config.project)}/_apis/wit/wiql?$top=${parsedArgs.top}`, {
     method: 'POST',
     body: wiql,
   });
@@ -232,7 +156,7 @@ function cmdWorkItemsRecent(config, args = []) {
   }
 }
 
-function cmdWorkItemComments(config, idRaw, args = []) {
+async function cmdWorkItemComments(config: AdoConfig, idRaw: string | undefined, args: string[] = []): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]');
@@ -262,14 +186,14 @@ function cmdWorkItemComments(config, idRaw, args = []) {
   const order = orderRaw === 'asc' ? 'asc' : 'desc';
 
   const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments?$top=${boundedTop}&order=${order}`;
-  const result = adoRequest(config, path, { apiVersion: COMMENTS_API_VERSION });
+  const result = await adoRequest<AdoCommentList>(config, path, { apiVersion: COMMENTS_API_VERSION });
   console.log(JSON.stringify(result, null, 2));
 }
 
-function resolveCommentText(options, usage) {
+async function resolveCommentText(options: Record<string, string | boolean>, usage: string): Promise<string> {
   let text = typeof options.text === 'string' ? options.text : undefined;
   if ((!text || text.trim().length === 0) && typeof options.file === 'string') {
-    text = readFileSync(options.file, 'utf8');
+    text = await Bun.file(options.file).text();
   }
 
   if (!text || text.trim().length === 0) {
@@ -281,7 +205,7 @@ function resolveCommentText(options, usage) {
   return text;
 }
 
-function cmdWorkItemCommentAdd(config, idRaw, args = []) {
+async function cmdWorkItemCommentAdd(config: AdoConfig, idRaw: string | undefined, args: string[] = []): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: workitem-comment-add <id> --text="..." [--file=path]');
@@ -304,10 +228,10 @@ function cmdWorkItemCommentAdd(config, idRaw, args = []) {
     process.exit(1);
   }
 
-  const text = resolveCommentText(options, usage);
+  const text = await resolveCommentText(options, usage);
 
   const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments`;
-  const result = adoRequest(config, path, {
+  const result = await adoRequest<AdoComment>(config, path, {
     method: 'POST',
     body: { text },
     apiVersion: COMMENTS_API_VERSION,
@@ -322,7 +246,7 @@ function cmdWorkItemCommentAdd(config, idRaw, args = []) {
   }, null, 2));
 }
 
-function cmdWorkItemCommentUpdate(config, idRaw, commentIdRaw, args = []) {
+async function cmdWorkItemCommentUpdate(config: AdoConfig, idRaw: string | undefined, commentIdRaw: string | undefined, args: string[] = []): Promise<void> {
   const id = Number(idRaw);
   const commentId = Number(commentIdRaw);
 
@@ -347,10 +271,10 @@ function cmdWorkItemCommentUpdate(config, idRaw, commentIdRaw, args = []) {
     process.exit(1);
   }
 
-  const text = resolveCommentText(options, usage);
+  const text = await resolveCommentText(options, usage);
 
   const path = `/${encodePathSegment(config.project)}/_apis/wit/workItems/${id}/comments/${commentId}`;
-  const result = adoRequest(config, path, {
+  const result = await adoRequest<AdoComment>(config, path, {
     method: 'PATCH',
     body: { text },
     apiVersion: COMMENTS_API_VERSION,
@@ -365,12 +289,12 @@ function cmdWorkItemCommentUpdate(config, idRaw, commentIdRaw, args = []) {
   }, null, 2));
 }
 
-function cmdPrs(config, status = 'active', topRaw = '10', repoArg) {
+async function cmdPrs(config: AdoConfig, status = 'active', topRaw = '10', repoArg?: string): Promise<void> {
   const top = Number(topRaw);
   const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
   const repo = pickRepo(config, repoArg);
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests?searchCriteria.status=${encodeURIComponent(status)}&$top=${boundedTop}`;
-  const result = adoRequest(config, path);
+  const result = await adoRequest<AdoListResponse<AdoPullRequest>>(config, path);
 
   for (const pr of result?.value ?? []) {
     const createdBy = pr.createdBy?.displayName ?? 'unknown';
@@ -378,7 +302,7 @@ function cmdPrs(config, status = 'active', topRaw = '10', repoArg) {
   }
 }
 
-function cmdPrGet(config, idRaw, repoArg) {
+async function cmdPrGet(config: AdoConfig, idRaw: string | undefined, repoArg?: string): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: pr-get <id> [repo]');
@@ -387,20 +311,20 @@ function cmdPrGet(config, idRaw, repoArg) {
 
   const repo = pickRepo(config, repoArg);
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
-  const pr = adoRequest(config, path);
+  const pr = await adoRequest<AdoPullRequest>(config, path);
   console.log(JSON.stringify({
-    id: pr.pullRequestId,
-    title: pr.title,
-    status: pr.status,
-    createdBy: pr.createdBy?.displayName ?? null,
-    createdById: pr.createdBy?.id ?? null,
-    sourceRef: pr.sourceRefName,
-    targetRef: pr.targetRefName,
-    url: pr.url,
+    id: pr?.pullRequestId,
+    title: pr?.title,
+    status: pr?.status,
+    createdBy: pr?.createdBy?.displayName ?? null,
+    createdById: pr?.createdBy?.id ?? null,
+    sourceRef: pr?.sourceRefName,
+    targetRef: pr?.targetRefName,
+    url: pr?.url,
   }, null, 2));
 }
 
-function cmdPrApprove(config, idRaw, repoArg) {
+async function cmdPrApprove(config: AdoConfig, idRaw: string | undefined, repoArg?: string): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: pr-approve <id> [repo]');
@@ -409,8 +333,8 @@ function cmdPrApprove(config, idRaw, repoArg) {
 
   const repo = pickRepo(config, repoArg);
   const prPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
-  const pr = adoRequest(config, prPath);
-  const reviewerId = pr.createdBy?.id;
+  const pr = await adoRequest<AdoPullRequest>(config, prPath);
+  const reviewerId = pr?.createdBy?.id;
 
   if (!reviewerId) {
     console.error('Could not determine reviewer id from PR createdBy.');
@@ -418,13 +342,13 @@ function cmdPrApprove(config, idRaw, repoArg) {
   }
 
   const reviewerPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}/reviewers/${encodePathSegment(reviewerId)}`;
-  adoRequest(config, reviewerPath, { method: 'PUT', body: { vote: 10 } });
+  await adoRequest(config, reviewerPath, { method: 'PUT', body: { vote: 10 } });
   console.log(`Approved PR #${id} as reviewer ${reviewerId}`);
 }
 
-function getOptionalWorkItemPolicyIds(config, repositoryId, targetRefName) {
-  const policies = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/policy/configurations`);
-  const ids = [];
+async function getOptionalWorkItemPolicyIds(config: AdoConfig, repositoryId: string | undefined, targetRefName: string | undefined): Promise<number[]> {
+  const policies = await adoRequest<AdoListResponse<AdoPolicyConfiguration>>(config, `/${encodePathSegment(config.project)}/_apis/policy/configurations`);
+  const ids: number[] = [];
 
   for (const policy of policies?.value ?? []) {
     const typeName = policy?.type?.displayName;
@@ -433,7 +357,7 @@ function getOptionalWorkItemPolicyIds(config, repositoryId, targetRefName) {
 
     const scopes = policy?.settings?.scope;
     if (!Array.isArray(scopes) || scopes.length === 0) {
-      ids.push(policy.id);
+      if (policy.id != null) ids.push(policy.id);
       continue;
     }
 
@@ -444,13 +368,13 @@ function getOptionalWorkItemPolicyIds(config, repositoryId, targetRefName) {
       return repoOk && refOk && matchKindOk;
     });
 
-    if (matchesScope) ids.push(policy.id);
+    if (matchesScope && policy.id != null) ids.push(policy.id);
   }
 
   return ids;
 }
 
-function cmdPrAutocomplete(config, idRaw, repoArg) {
+async function cmdPrAutocomplete(config: AdoConfig, idRaw: string | undefined, repoArg?: string): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: pr-autocomplete <id> [repo]');
@@ -459,21 +383,21 @@ function cmdPrAutocomplete(config, idRaw, repoArg) {
 
   const repo = pickRepo(config, repoArg);
   const prPath = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
-  const pr = adoRequest(config, prPath);
-  const userId = pr.createdBy?.id;
+  const pr = await adoRequest<AdoPullRequest>(config, prPath);
+  const userId = pr?.createdBy?.id;
 
   if (!userId) {
     console.error('Could not determine user id from PR createdBy.');
     process.exit(1);
   }
 
-  const optionalWorkItemPolicyIds = getOptionalWorkItemPolicyIds(
+  const optionalWorkItemPolicyIds = await getOptionalWorkItemPolicyIds(
     config,
-    pr.repository?.id,
-    pr.targetRefName,
+    pr?.repository?.id,
+    pr?.targetRefName,
   );
 
-  adoRequest(config, prPath, {
+  await adoRequest(config, prPath, {
     method: 'PATCH',
     body: {
       autoCompleteSetBy: { id: userId },
@@ -491,18 +415,18 @@ function cmdPrAutocomplete(config, idRaw, repoArg) {
   }
 }
 
-function cmdBuilds(config, topRaw = '10') {
+async function cmdBuilds(config: AdoConfig, topRaw = '10'): Promise<void> {
   const top = Number(topRaw);
   const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
   const path = `/${encodePathSegment(config.project)}/_apis/build/builds?$top=${boundedTop}&queryOrder=queueTimeDescending`;
-  const result = adoRequest(config, path);
+  const result = await adoRequest<AdoListResponse<AdoBuild>>(config, path);
 
   for (const b of result?.value ?? []) {
     console.log(`#${b.id}\t${b.status}/${b.result ?? 'n/a'}\t${b.definition?.name ?? 'unknown'}\t${b.sourceBranch ?? ''}`);
   }
 }
 
-function linkWorkItemsToPr(config, repo, pr, workItemIds) {
+async function linkWorkItemsToPr(config: AdoConfig, repo: string, pr: AdoPullRequest | null, workItemIds: number[]): Promise<void> {
   const artifactUrl = buildPullRequestArtifactUrl(pr);
   if (!artifactUrl) {
     throw new Error('Unable to resolve PR artifact URL required to link work items.');
@@ -524,20 +448,20 @@ function linkWorkItemsToPr(config, repo, pr, workItemIds) {
       },
     ];
 
-    adoRequest(config, wiPath, {
+    await adoRequest(config, wiPath, {
       method: 'PATCH',
       body: patchBody,
       contentType: 'application/json-patch+json',
     });
 
-    console.log(`Linked work item #${workItemId} to PR #${pr.pullRequestId}`);
+    console.log(`Linked work item #${workItemId} to PR #${pr?.pullRequestId}`);
   }
 }
 
-function cmdPrCreate(config, args) {
+async function cmdPrCreate(config: AdoConfig, args: string[]): Promise<void> {
   const kv = Object.fromEntries(args.map((arg) => {
     const [k, ...rest] = arg.split('=');
-    return [k.replace(/^--/, ''), rest.join('=')];
+    return [k!.replace(/^--/, ''), rest.join('=')];
   }));
 
   const title = kv.title;
@@ -560,16 +484,16 @@ function cmdPrCreate(config, args) {
   };
 
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests`;
-  const created = adoRequest(config, path, { method: 'POST', body });
-  console.log(`Created PR #${created.pullRequestId}: ${created.title}`);
+  const created = await adoRequest<AdoPullRequest>(config, path, { method: 'POST', body });
+  console.log(`Created PR #${created?.pullRequestId}: ${created?.title}`);
 
   if (workItemIds.length > 0) {
-    const createdPr = adoRequest(config, `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${created.pullRequestId}`);
-    linkWorkItemsToPr(config, repo, createdPr, workItemIds);
+    const createdPr = await adoRequest<AdoPullRequest>(config, `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${created?.pullRequestId}`);
+    await linkWorkItemsToPr(config, repo, createdPr, workItemIds);
   }
 }
 
-function cmdPrUpdate(config, idRaw, args) {
+async function cmdPrUpdate(config: AdoConfig, idRaw: string | undefined, args: string[]): Promise<void> {
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error('Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]');
@@ -578,11 +502,11 @@ function cmdPrUpdate(config, idRaw, args) {
 
   const kv = Object.fromEntries(args.map((arg) => {
     const [k, ...rest] = arg.split('=');
-    return [k.replace(/^--/, ''), rest.join('=')];
+    return [k!.replace(/^--/, ''), rest.join('=')];
   }));
 
   const repo = pickRepo(config, kv.repo);
-  const body = {};
+  const body: Record<string, string> = {};
   const workItemIds = parseWorkItemIds(kv['work-items']);
 
   if (kv.title !== undefined) body.title = kv.title;
@@ -594,25 +518,25 @@ function cmdPrUpdate(config, idRaw, args) {
   }
 
   const path = `/${encodePathSegment(config.project)}/_apis/git/repositories/${encodePathSegment(repo)}/pullrequests/${id}`;
-  let updated;
+  let updated: AdoPullRequest | null;
 
   if (Object.keys(body).length > 0) {
-    updated = adoRequest(config, path, { method: 'PATCH', body });
-    console.log(`Updated PR #${updated.pullRequestId}: ${updated.title}`);
+    updated = await adoRequest<AdoPullRequest>(config, path, { method: 'PATCH', body });
+    console.log(`Updated PR #${updated?.pullRequestId}: ${updated?.title}`);
   } else {
-    updated = adoRequest(config, path);
+    updated = await adoRequest<AdoPullRequest>(config, path);
   }
 
   if (workItemIds.length > 0) {
-    linkWorkItemsToPr(config, repo, updated, workItemIds);
+    await linkWorkItemsToPr(config, repo, updated, workItemIds);
   }
 }
 
-function printHelp() {
+function printHelp(): void {
   console.log(`Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`);
 }
 
-function main() {
+async function main(): Promise<void> {
   const [command = 'smoke', ...args] = process.argv.slice(2);
 
   if (command === 'help' || command === '--help' || command === '-h') {
@@ -624,49 +548,49 @@ function main() {
 
   switch (command) {
     case 'smoke':
-      cmdSmoke(config);
+      await cmdSmoke(config);
       break;
     case 'repos':
-      cmdRepos(config);
+      await cmdRepos(config);
       break;
     case 'branches':
-      cmdBranches(config, args[0]);
+      await cmdBranches(config, args[0]);
       break;
     case 'workitem-get':
-      cmdWorkItemGet(config, args[0], args.slice(1));
+      await cmdWorkItemGet(config, args[0], args.slice(1));
       break;
     case 'workitems-recent':
-      cmdWorkItemsRecent(config, args);
+      await cmdWorkItemsRecent(config, args);
       break;
     case 'workitem-comments':
-      cmdWorkItemComments(config, args[0], args.slice(1));
+      await cmdWorkItemComments(config, args[0], args.slice(1));
       break;
     case 'workitem-comment-add':
-      cmdWorkItemCommentAdd(config, args[0], args.slice(1));
+      await cmdWorkItemCommentAdd(config, args[0], args.slice(1));
       break;
     case 'workitem-comment-update':
-      cmdWorkItemCommentUpdate(config, args[0], args[1], args.slice(2));
+      await cmdWorkItemCommentUpdate(config, args[0], args[1], args.slice(2));
       break;
     case 'prs':
-      cmdPrs(config, args[0], args[1], args[2]);
+      await cmdPrs(config, args[0], args[1], args[2]);
       break;
     case 'pr-get':
-      cmdPrGet(config, args[0], args[1]);
+      await cmdPrGet(config, args[0], args[1]);
       break;
     case 'pr-create':
-      cmdPrCreate(config, args);
+      await cmdPrCreate(config, args);
       break;
     case 'pr-update':
-      cmdPrUpdate(config, args[0], args.slice(1));
+      await cmdPrUpdate(config, args[0], args.slice(1));
       break;
     case 'pr-approve':
-      cmdPrApprove(config, args[0], args[1]);
+      await cmdPrApprove(config, args[0], args[1]);
       break;
     case 'pr-autocomplete':
-      cmdPrAutocomplete(config, args[0], args[1]);
+      await cmdPrAutocomplete(config, args[0], args[1]);
       break;
     case 'builds':
-      cmdBuilds(config, args[0]);
+      await cmdBuilds(config, args[0]);
       break;
     default:
       console.error(`Unknown command: ${command}`);
@@ -676,8 +600,8 @@ function main() {
 }
 
 try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  await main();
+} catch (e) {
+  console.error(e instanceof Error ? e.message : String(e));
   process.exit(1);
 }

@@ -8,3 +8,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
+
+# Build output
+ado
+
+# Bun
+bun.lock
+
+node_modules
