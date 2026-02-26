@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { getConfig } from "./config.ts";
+import { getConfig, getConfigDir, getConfigFilePath, loadFileConfig } from "./config.ts";
 import { buildPullRequestArtifactUrl, parseWorkItemIds } from "./pr-workitems.ts";
 import {
   buildRecentWorkItemsWiql,
   parseOptionArgs,
   parseWorkItemsRecentArgs,
 } from "./workitems-query.ts";
-import type { AdoConfig } from "./types.ts";
+import type { AdoConfig, FileConfig } from "./types.ts";
 import { PullRequestStatus } from "azure-devops-node-api/interfaces/GitInterfaces";
 import type {
   GitPullRequest,
@@ -688,9 +688,47 @@ async function cmdPrUpdate(
   }
 }
 
+async function cmdInit(): Promise<void> {
+  const { createInterface } = await import("node:readline/promises");
+  const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const existing = loadFileConfig();
+  const configPath = getConfigFilePath();
+
+  console.log("Azure DevOps CLI — Configuration");
+  console.log(`Config file: ${configPath}`);
+  console.log("Press Enter to keep existing values shown in brackets.\n");
+
+  const pat = (await rl.question(`Personal Access Token (PAT)${existing.pat ? " [****]" : ""}: `)) || existing.pat || "";
+  const collectionUrl = (await rl.question(`Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `)) || existing.collectionUrl || "";
+  const project = (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) || existing.project || "";
+  const repo = (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) || existing.repo || "";
+  const insecureInput = (await rl.question(`Disable TLS verification (insecure)? (y/N)${existing.insecure ? " [y]" : ""}: `)) || (existing.insecure ? "y" : "n");
+  const insecure = insecureInput.toLowerCase() === "y" || insecureInput === "1";
+
+  rl.close();
+
+  if (!pat || !collectionUrl || !project || !repo) {
+    console.error("\nAll fields (PAT, Collection URL, Project, Repository) are required.");
+    process.exit(1);
+  }
+
+  const config: FileConfig = { pat, collectionUrl, project, repo, insecure };
+
+  const configDir = getConfigDir();
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true });
+  }
+
+  writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+  console.log(`\nConfiguration saved to ${configPath}`);
+}
+
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  init\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 
@@ -699,6 +737,11 @@ async function main(): Promise<void> {
 
   if (command === "help" || command === "--help" || command === "-h") {
     printHelp();
+    return;
+  }
+
+  if (command === "init") {
+    await cmdInit();
     return;
   }
 

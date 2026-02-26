@@ -8,6 +8,14 @@ export interface AdoConfig {
   connection: WebApi;
 }
 
+export interface FileConfig {
+  pat?: string;
+  collectionUrl?: string;
+  project?: string;
+  repo?: string;
+  insecure?: boolean;
+}
+
 export interface ParsedOptions {
   options: Record<string, string | boolean>;
   positionals: string[];
