@@ -1,0 +1,17 @@
+# Local environment
+.env
+.env.*
+
+# Runtime artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+
+# Build output
+ado
+dist/
+
+# Bun
+node_modules
