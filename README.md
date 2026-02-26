@@ -4,14 +4,14 @@ Lightweight CLI for Azure DevOps REST workflows (repos, branches, work items, PR
 
 ## Why this exists
 
-This project provides a tiny scriptable command layer over the Azure DevOps REST API so automation agents and developers can run common actions quickly without rewriting `curl` calls.
+This project provides a tiny scriptable command layer over the Azure DevOps API so automation agents and developers can run common actions quickly.
 
 ## Requirements
 
-- Node.js 18+
-- npm
-- `curl`
+- Node.js 18+ (runtime for the published npm package)
 - An Azure DevOps Personal Access Token (PAT)
+
+For development you also need [Bun](https://bun.sh/) (used for builds, tests, and scripts).
 
 ## Configuration
 
@@ -127,7 +127,7 @@ A reusable agent skill is included at:
 
 - `skills/ado-workflows/SKILL.md`
 
-This helps OpenClaw-compatible agents run consistent Azure DevOps workflows using this CLI.
+This helps AI coding agents run consistent Azure DevOps workflows using this CLI.
 
 ## Development
 
@@ -158,12 +158,6 @@ bun install          # installs deps + sets up git hooks via lefthook
 - `oxfmt` (format)
 - `oxlint --type-aware --type-check --fix` (lint + fix)
 
-**Pre-push** — repo-wide checks, blocks push on failure:
-
-- `fmt:check` (formatting)
-- `lint` (type-aware + type-check linting)
-- `test` (unit tests)
-
 ### Editor
 
 Install the recommended VS Code extension (`oxc.oxc-vscode`) when prompted. Format-on-save and lint fix-on-save are pre-configured in `.vscode/settings.json`.
@@ -177,4 +171,4 @@ Install the recommended VS Code extension (`oxc.oxc-vscode`) when prompted. Form
 ## Troubleshooting
 
 - `400 Bad Request - Invalid URL` at startup usually means one of `ADO_COLLECTION_URL`, `ADO_PROJECT`, or `ADO_REPO` is still using placeholder defaults.
-- If strict TLS fails on internal servers, validate reachability with `scripts/localserver-reachability.mjs` from the workspace, then use `ADO_INSECURE=1` only when appropriate.
+- If strict TLS fails on internal servers, use `ADO_INSECURE=1` only when appropriate for trusted self-signed endpoints.
