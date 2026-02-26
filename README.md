@@ -93,6 +93,43 @@ A reusable agent skill is included at:
 
 This helps OpenClaw-compatible agents run consistent Azure DevOps workflows using this CLI.
 
+## Development
+
+### Setup
+
+```bash
+bun install          # installs deps + sets up git hooks via lefthook
+```
+
+### Scripts
+
+| Script              | Description                                |
+| ------------------- | ------------------------------------------ |
+| `bun run lint`      | Lint with oxlint (type-aware + type-check) |
+| `bun run lint:fix`  | Lint and auto-fix safe issues              |
+| `bun run fmt`       | Format all files with oxfmt                |
+| `bun run fmt:check` | Check formatting without writing           |
+| `bun test`          | Run tests                                  |
+| `bun run typecheck` | Run tsc type-check (manual, not in hooks)  |
+| `bun run build`     | Compile to standalone binary               |
+
+### Quality gates (git hooks via Lefthook)
+
+**Pre-commit** — runs on staged files, auto-fixes and re-stages:
+
+- `oxfmt` (format)
+- `oxlint --type-aware --type-check --fix` (lint + fix)
+
+**Pre-push** — repo-wide checks, blocks push on failure:
+
+- `fmt:check` (formatting)
+- `lint` (type-aware + type-check linting)
+- `test` (unit tests)
+
+### Editor
+
+Install the recommended VS Code extension (`oxc.oxc-vscode`) when prompted. Format-on-save and lint fix-on-save are pre-configured in `.vscode/settings.json`.
+
 ## Security notes
 
 - Never commit your PAT.
