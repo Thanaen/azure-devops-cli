@@ -7,6 +7,22 @@
 - Batch improvements and ship in small commits.
 - Ask only for potentially disruptive changes (breaking command syntax, auth model changes, destructive actions).
 
+## Done
+
+1. **Client layer migration**
+   - Migrated from raw `curl` calls to `azure-devops-node-api` (typed clients, auth handling, retries).
+
+2. **Work item search helpers**
+   - `workitems-recent` with `--tag`, `--type`, `--state` filters via WIQL.
+
+3. **PR workflow helpers (partial)**
+   - `pr-create` with `--work-items` auto-links work items via artifact URLs.
+   - `pr-update` can update metadata and link work items in one call.
+   - `pr-autocomplete` with intelligent optional-policy detection.
+
+4. **Validation + tests (partial)**
+   - Unit tests for command parsing (`workitems-query`), PR helpers (`pr-workitems`), and package config (10 test cases).
+
 ## Next improvements
 
 1. **Config profiles**
@@ -14,25 +30,17 @@
    - Persist URL/project/repo per profile in local config
 
 2. **Safer TLS by default**
-   - Replace `--insecure` with optional custom CA (`ADO_CA_CERT`)
-   - Keep `--insecure` only via explicit flag/env
+   - Support optional custom CA via `ADO_CA_CERT`
+   - Keep `ADO_INSECURE=1` only via explicit env
 
-3. **Work item search helpers**
-   - `workitems-query --wiql=...`
-   - `workitems-open` shortcuts
+3. **Better output modes**
+   - `--json` flag for commands that currently output tab-separated text (`repos`, `branches`, `prs`, `builds`, `workitems-recent`)
+   - Compact table output
 
-4. **PR workflow helpers**
-   - `pr-create` from current git branch
-   - Auto-link work items in PR description
+4. **PR workflow helpers (remaining)**
+   - Auto-detect current git branch for `pr-create --source`
+   - `workitems-query --wiql=...` for arbitrary WIQL
 
-5. **Better output modes**
-   - `--json` for all commands
-   - compact table output
-
-6. **Validation + tests**
-   - Unit tests for command parsing and request builder
+5. **Validation + tests (remaining)**
    - Contract smoke tests against a dedicated integration environment
-
-7. **Client layer migration (optional)**
-   - Evaluate replacing raw curl calls with `azure-devops-node-api` for typed clients, auth handling, retries, and safer comment/work item operations.
-   - Keep current CLI endpoints stable while progressively migrating internals.
+   - Expand unit test coverage to remaining commands
