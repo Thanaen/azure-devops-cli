@@ -29,7 +29,12 @@ export function loadFileConfig(): FileConfig {
   }
 
   const content = readFileSync(configPath, "utf8");
-  return JSON.parse(content) as FileConfig;
+  try {
+    return JSON.parse(content) as FileConfig;
+  } catch {
+    console.error(`Warning: could not parse config file at ${configPath}. Using defaults.`);
+    return {};
+  }
 }
 
 export function getConfig(): AdoConfig {
