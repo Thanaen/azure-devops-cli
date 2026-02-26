@@ -1,6 +1,6 @@
 {
   "name": "@thanaen/ado-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lightweight Azure DevOps CLI for repos, work items, pull requests, and builds",
   "repository": {
     "type": "git",
