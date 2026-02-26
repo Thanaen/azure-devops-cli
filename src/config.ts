@@ -10,15 +10,15 @@ function isDefaultPlaceholder(value: string): boolean {
 }
 
 export function getConfig(): AdoConfig {
-  const pat = Bun.env.DEVOPS_PAT;
+  const pat = process.env.DEVOPS_PAT;
   if (!pat) {
     console.error("Missing DEVOPS_PAT environment variable.");
     process.exit(1);
   }
 
-  const collectionUrl = Bun.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL;
-  const project = Bun.env.ADO_PROJECT ?? DEFAULT_PROJECT;
-  const repo = Bun.env.ADO_REPO ?? DEFAULT_REPO;
+  const collectionUrl = process.env.ADO_COLLECTION_URL ?? DEFAULT_COLLECTION_URL;
+  const project = process.env.ADO_PROJECT ?? DEFAULT_PROJECT;
+  const repo = process.env.ADO_REPO ?? DEFAULT_REPO;
 
   if (
     isDefaultPlaceholder(collectionUrl) ||
@@ -34,7 +34,7 @@ export function getConfig(): AdoConfig {
     process.exit(1);
   }
 
-  if (Bun.env.ADO_INSECURE === "1") {
+  if (process.env.ADO_INSECURE === "1") {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   }
 

@@ -1,11 +1,19 @@
 {
-  "name": "azure-devops-cli",
+  "name": "@thanaen/ado-cli",
   "version": "0.1.0",
-  "private": true,
+  "description": "Lightweight Azure DevOps CLI for repos, work items, pull requests, and builds",
   "bin": {
-    "ado": "src/cli.ts"
+    "ado": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "skills"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "ado": "bun src/cli.ts",
     "check": "bun src/cli.ts smoke",
@@ -13,6 +21,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "build": "bun build src/cli.ts --compile --outfile ado",
+    "build:dist": "bun build src/cli.ts --target=node --outfile dist/cli.js",
+    "prepack": "bun run build:dist",
     "lint": "oxlint --type-aware --type-check",
     "lint:fix": "oxlint --type-aware --type-check --fix",
     "fmt": "oxfmt",
