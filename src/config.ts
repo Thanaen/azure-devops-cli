@@ -60,9 +60,7 @@ export function getConfig(): AdoConfig {
     console.error(
       "ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.",
     );
-    console.error(
-      `You can also run "ado init" to create a config file at ${getConfigFilePath()}`,
-    );
+    console.error(`You can also run "ado init" to create a config file at ${getConfigFilePath()}`);
     process.exit(1);
   }
 

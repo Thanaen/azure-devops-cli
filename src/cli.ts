@@ -701,11 +701,28 @@ async function cmdInit(): Promise<void> {
   console.log(`Config file: ${configPath}`);
   console.log("Press Enter to keep existing values shown in brackets.\n");
 
-  const pat = (await rl.question(`Personal Access Token (PAT)${existing.pat ? " [****]" : ""}: `)) || existing.pat || "";
-  const collectionUrl = (await rl.question(`Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `)) || existing.collectionUrl || "";
-  const project = (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) || existing.project || "";
-  const repo = (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) || existing.repo || "";
-  const insecureInput = (await rl.question(`Disable TLS verification (insecure)? (y/N)${existing.insecure ? " [y]" : ""}: `)) || (existing.insecure ? "y" : "n");
+  const pat =
+    (await rl.question(`Personal Access Token (PAT)${existing.pat ? " [****]" : ""}: `)) ||
+    existing.pat ||
+    "";
+  const collectionUrl =
+    (await rl.question(
+      `Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `,
+    )) ||
+    existing.collectionUrl ||
+    "";
+  const project =
+    (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) ||
+    existing.project ||
+    "";
+  const repo =
+    (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) ||
+    existing.repo ||
+    "";
+  const insecureInput =
+    (await rl.question(
+      `Disable TLS verification (insecure)? (y/N)${existing.insecure ? " [y]" : ""}: `,
+    )) || (existing.insecure ? "y" : "n");
   const insecure = insecureInput.toLowerCase() === "y" || insecureInput === "1";
 
   rl.close();
