@@ -31,7 +31,6 @@
     "lint:fix": "oxlint --type-aware --type-check --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "format": "bun run fmt",
     "prepare": "lefthook install"
   },
   "dependencies": {
