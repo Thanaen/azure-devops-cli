@@ -11,6 +11,7 @@ yarn-error.log*
 
 # Build output
 ado
+dist/
 
 # Bun
 node_modules

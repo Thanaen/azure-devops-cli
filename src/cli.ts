@@ -1,4 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import { getConfig } from "./config.ts";
 import { buildPullRequestArtifactUrl, parseWorkItemIds } from "./pr-workitems.ts";
 import {
@@ -256,7 +257,7 @@ async function resolveCommentText(
 ): Promise<string> {
   let text = typeof options.text === "string" ? options.text : undefined;
   if ((!text || text.trim().length === 0) && typeof options.file === "string") {
-    text = await Bun.file(options.file).text();
+    text = await readFile(options.file, "utf8");
   }
 
   if (!text || text.trim().length === 0) {

@@ -1,4 +1,4 @@
-# azure-devops-cli
+# @thanaen/ado-cli
 
 Lightweight CLI for Azure DevOps REST workflows (repos, branches, work items, PRs, builds).
 
@@ -8,7 +8,8 @@ This project provides a tiny scriptable command layer over the Azure DevOps REST
 
 ## Requirements
 
-- Node.js 18+ (or Bun)
+- Node.js 18+
+- npm
 - `curl`
 - An Azure DevOps Personal Access Token (PAT)
 
@@ -41,17 +42,19 @@ export ADO_REPO="Ulysse Interface"
 export ADO_INSECURE=1
 ```
 
+## Install
+
+Global install (CLI available as `ado`):
+
+```bash
+npm i -g @thanaen/ado-cli
+```
+
 ## Usage
 
 ```bash
-node src/cli.mjs help
-node src/cli.mjs smoke
-```
-
-(or with Bun)
-
-```bash
-bun src/cli.mjs help
+ado help
+ado smoke
 ```
 
 ## Commands
@@ -103,15 +106,17 @@ bun install          # installs deps + sets up git hooks via lefthook
 
 ### Scripts
 
-| Script              | Description                                |
-| ------------------- | ------------------------------------------ |
-| `bun run lint`      | Lint with oxlint (type-aware + type-check) |
-| `bun run lint:fix`  | Lint and auto-fix safe issues              |
-| `bun run fmt`       | Format all files with oxfmt                |
-| `bun run fmt:check` | Check formatting without writing           |
-| `bun test`          | Run tests                                  |
-| `bun run typecheck` | Run tsc type-check (manual, not in hooks)  |
-| `bun run build`     | Compile to standalone binary               |
+| Script               | Description                                |
+| -------------------- | ------------------------------------------ |
+| `bun run lint`       | Lint with oxlint (type-aware + type-check) |
+| `bun run lint:fix`   | Lint and auto-fix safe issues              |
+| `bun run fmt`        | Format all files with oxfmt                |
+| `bun run fmt:check`  | Check formatting without writing           |
+| `bun test`           | Run tests                                  |
+| `bun run typecheck`  | Run tsc type-check (manual, not in hooks)  |
+| `bun run build`      | Compile to standalone binary               |
+| `bun run build:dist` | Build Node CLI used for npm publication    |
+| `bun run prepack`    | Rebuild dist before `npm pack/publish`     |
 
 ### Quality gates (git hooks via Lefthook)
 
