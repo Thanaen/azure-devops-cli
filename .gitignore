@@ -15,4 +15,3 @@ dist/
 
 # Bun
 node_modules
-package-lock.json
