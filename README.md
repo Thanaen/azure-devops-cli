@@ -88,6 +88,39 @@ ado workitems-recent --type=Bug --tag=bot --state=New
 ado workitem-comment-update 20485 12527 --file=./comment.md
 ```
 
+## npm publication (GitHub Actions)
+
+The repository includes a workflow at `.github/workflows/npm-publish.yml`.
+
+It can publish in two ways:
+
+- automatically when a GitHub Release is published
+- manually with **Run workflow** (`workflow_dispatch`)
+
+### Required repository secret
+
+- `NPM_TOKEN`: npm automation token allowed to publish `@thanaen/ado-cli`
+
+### Release prep
+
+- bump `package.json` version before creating the release/tag
+
+### Workflow behavior
+
+Before publishing, the workflow runs:
+
+- `bun run fmt:check`
+- `bun run lint`
+- `bun run typecheck`
+- `bun test`
+- `npm pack --dry-run`
+
+Then it publishes with:
+
+```bash
+npm publish --access public --provenance
+```
+
 ## Agent skill included
 
 A reusable agent skill is included at:
