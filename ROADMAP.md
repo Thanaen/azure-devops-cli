@@ -19,6 +19,7 @@
    - `pr-create` with `--work-items` auto-links work items via artifact URLs.
    - `pr-update` can update metadata and link work items in one call.
    - `pr-autocomplete` with intelligent optional-policy detection.
+   - `pr-cherry-pick` cherry-picks a PR onto a target branch with optional custom topic branch name.
 
 4. **Validation + tests (partial)**
    - Unit tests for command parsing (`workitems-query`), PR helpers (`pr-workitems`), and package config (10 test cases).

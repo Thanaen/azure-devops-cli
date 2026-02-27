@@ -32,6 +32,7 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 - Get PR: `ado pr-get <id> "MyRepo"`
 - Create PR: `ado pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo" --work-items=123,456`
 - Update PR: `ado pr-update <id> --title="..." --description="..." --repo="MyRepo" --work-items=123,456`
+- Cherry-pick PR onto another branch: `ado pr-cherry-pick <id> --target="main" --topic="cherry-pick-branch" --repo="MyRepo"`
 - Approve PR: `ado pr-approve <id> "MyRepo"`
 - Enable auto-complete: `ado pr-autocomplete <id> "MyRepo"`
 - List builds: `ado builds 10`
