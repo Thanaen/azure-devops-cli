@@ -71,6 +71,7 @@ ado smoke
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`
 - `pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]`
+- `pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]`
 - `pr-approve <id> [repo]`
 - `pr-autocomplete <id> [repo]`
 - `builds [top]`

@@ -8,7 +8,11 @@ import {
   parseWorkItemsRecentArgs,
 } from "./workitems-query.ts";
 import type { AdoConfig, FileConfig } from "./types.ts";
-import { PullRequestStatus } from "azure-devops-node-api/interfaces/GitInterfaces";
+import { buildGeneratedRefName, parseCherryPickArgs } from "./cherry-pick.ts";
+import {
+  GitAsyncOperationStatus,
+  PullRequestStatus,
+} from "azure-devops-node-api/interfaces/GitInterfaces";
 import type {
   GitPullRequest,
   GitPullRequestSearchCriteria,
@@ -688,6 +692,78 @@ async function cmdPrUpdate(
   }
 }
 
+async function cmdPrCherryPick(config: AdoConfig, args: string[]): Promise<void> {
+  const usage = "Usage: pr-cherry-pick <id> --target=main [--topic=branch-name] [--repo=...]";
+
+  let parsed;
+  try {
+    parsed = parseCherryPickArgs(args);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    console.error(usage);
+    process.exit(1);
+  }
+
+  const repo = pickRepo(config, parsed.repo);
+  const gitApi = await config.connection.getGitApi();
+
+  const repository = await gitApi.getRepository(repo, config.project);
+  if (!repository?.id) {
+    console.error(`Repository "${repo}" not found.`);
+    process.exit(1);
+  }
+
+  const targetRef = parsed.target.startsWith("refs/")
+    ? parsed.target
+    : `refs/heads/${parsed.target}`;
+  const generatedRefName = buildGeneratedRefName(parsed.prId, parsed.target, parsed.topic);
+
+  const cherryPick = await gitApi.createCherryPick(
+    {
+      source: { pullRequestId: parsed.prId },
+      ontoRefName: targetRef,
+      generatedRefName,
+      repository: { id: repository.id },
+    },
+    config.project,
+    repository.id,
+  );
+
+  let status = cherryPick.status;
+  const cherryPickId = cherryPick.cherryPickId;
+
+  if (cherryPickId == null) {
+    console.error("Cherry-pick operation could not be started.");
+    process.exit(1);
+  }
+
+  const maxAttempts = 30;
+  for (
+    let i = 0;
+    i < maxAttempts &&
+    (status === GitAsyncOperationStatus.Queued || status === GitAsyncOperationStatus.InProgress);
+    i++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await gitApi.getCherryPick(config.project, cherryPickId, repository.id);
+    status = result.status;
+  }
+
+  if (status === GitAsyncOperationStatus.Completed) {
+    console.log(
+      `Cherry-pick of PR #${parsed.prId} completed. Branch created: ${generatedRefName.replace("refs/heads/", "")}`,
+    );
+  } else if (status === GitAsyncOperationStatus.Failed) {
+    console.error(`Cherry-pick of PR #${parsed.prId} failed.`);
+    process.exit(1);
+  } else {
+    console.error(
+      `Cherry-pick of PR #${parsed.prId} did not complete in time (status: ${GitAsyncOperationStatus[status ?? 0] ?? "unknown"}).`,
+    );
+    process.exit(1);
+  }
+}
+
 async function cmdInit(): Promise<void> {
   const { createInterface } = await import("node:readline/promises");
   const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
@@ -745,7 +821,7 @@ async function cmdInit(): Promise<void> {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  init\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  init\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 
@@ -800,6 +876,9 @@ async function main(): Promise<void> {
       break;
     case "pr-update":
       await cmdPrUpdate(config, args[0], args.slice(1));
+      break;
+    case "pr-cherry-pick":
+      await cmdPrCherryPick(config, args);
       break;
     case "pr-approve":
       await cmdPrApprove(config, args[0], args[1]);
