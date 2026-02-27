@@ -737,14 +737,15 @@ async function cmdPrCherryPick(config: AdoConfig, args: string[]): Promise<void>
     process.exit(1);
   }
 
-  const maxAttempts = 30;
+  const MAX_POLL_ATTEMPTS = 30;
+  const POLL_INTERVAL_MS = 1000;
   for (
-    let i = 0;
-    i < maxAttempts &&
+    let attempt = 0;
+    attempt < MAX_POLL_ATTEMPTS &&
     (status === GitAsyncOperationStatus.Queued || status === GitAsyncOperationStatus.InProgress);
-    i++
+    attempt++
   ) {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     const result = await gitApi.getCherryPick(config.project, cherryPickId, repository.id);
     status = result.status;
   }
