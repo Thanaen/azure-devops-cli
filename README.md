@@ -59,6 +59,8 @@ ado smoke
 
 ## Commands
 
+- `init [--local]`
+- `config`
 - `smoke`
 - `repos`
 - `branches [repo]`

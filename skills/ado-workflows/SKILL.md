@@ -19,6 +19,9 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 
 ## Core commands
 
+- Initialize global config: `ado init`
+- Initialize local (per-project) config: `ado init --local`
+- Show resolved config: `ado config`
 - List repos: `ado repos`
 - List branches: `ado branches "MyRepo"`
 - Get work item: `ado workitem-get <id>`

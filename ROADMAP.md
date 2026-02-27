@@ -24,6 +24,11 @@
 4. **Validation + tests (partial)**
    - Unit tests for command parsing (`workitems-query`), PR helpers (`pr-workitems`), and package config (10 test cases).
 
+5. **Local config override**
+   - `init --local` creates a per-project `ado.json` in the current directory.
+   - `config` command shows the resolved configuration with source locations.
+   - Local config overrides global config; env vars take highest priority.
+
 ## Next improvements
 
 1. **Config profiles**

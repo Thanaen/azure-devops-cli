@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
-import { getConfig, getConfigDir, getConfigFilePath, loadFileConfig } from "./config.ts";
+import {
+  getConfig,
+  getConfigDir,
+  getConfigFilePath,
+  getLocalConfigFilePath,
+  loadFileConfig,
+  loadLocalConfig,
+  censorPat,
+} from "./config.ts";
 import { buildPullRequestArtifactUrl, parseWorkItemIds } from "./pr-workitems.ts";
 import {
   buildRecentWorkItemsWiql,
@@ -765,64 +773,130 @@ async function cmdPrCherryPick(config: AdoConfig, args: string[]): Promise<void>
   }
 }
 
-async function cmdInit(): Promise<void> {
+async function cmdInit(args: string[]): Promise<void> {
+  const isLocal = args.includes("--local");
   const { createInterface } = await import("node:readline/promises");
   const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-  const existing = loadFileConfig();
-  const configPath = getConfigFilePath();
+  const existing = isLocal ? loadLocalConfig() : loadFileConfig();
+  const configPath = isLocal ? getLocalConfigFilePath() : getConfigFilePath();
 
-  console.log("Azure DevOps CLI — Configuration");
+  console.log(`Azure DevOps CLI — ${isLocal ? "Local " : ""}Configuration`);
   console.log(`Config file: ${configPath}`);
   console.log("Press Enter to keep existing values shown in brackets.\n");
 
-  const pat =
-    (await rl.question(`Personal Access Token (PAT)${existing.pat ? " [****]" : ""}: `)) ||
-    existing.pat ||
-    "";
+  if (isLocal) {
+    const collectionUrl =
+      (await rl.question(
+        `Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `,
+      )) ||
+      existing.collectionUrl ||
+      "";
+    const project =
+      (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) ||
+      existing.project ||
+      "";
+    const repo =
+      (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) ||
+      existing.repo ||
+      "";
+
+    rl.close();
+
+    const config: FileConfig = {};
+    if (collectionUrl) config.collectionUrl = collectionUrl;
+    if (project) config.project = project;
+    if (repo) config.repo = repo;
+
+    if (Object.keys(config).length === 0) {
+      console.error("\nAt least one field must be provided for local config.");
+      process.exit(1);
+    }
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+    console.log(`\nLocal configuration saved to ${configPath}`);
+  } else {
+    const pat =
+      (await rl.question(`Personal Access Token (PAT)${existing.pat ? " [****]" : ""}: `)) ||
+      existing.pat ||
+      "";
+    const collectionUrl =
+      (await rl.question(
+        `Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `,
+      )) ||
+      existing.collectionUrl ||
+      "";
+    const project =
+      (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) ||
+      existing.project ||
+      "";
+    const repo =
+      (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) ||
+      existing.repo ||
+      "";
+    const insecureInput =
+      (await rl.question(
+        `Disable TLS verification (insecure)? (y/N)${existing.insecure ? " [y]" : ""}: `,
+      )) || (existing.insecure ? "y" : "n");
+    const insecure = insecureInput.toLowerCase() === "y" || insecureInput === "1";
+
+    rl.close();
+
+    if (!pat || !collectionUrl || !project || !repo) {
+      console.error("\nAll fields (PAT, Collection URL, Project, Repository) are required.");
+      process.exit(1);
+    }
+
+    const config: FileConfig = { pat, collectionUrl, project, repo, insecure };
+
+    const configDir = getConfigDir();
+    if (!existsSync(configDir)) {
+      mkdirSync(configDir, { recursive: true });
+    }
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+    console.log(`\nConfiguration saved to ${configPath}`);
+  }
+}
+
+function cmdConfig(): void {
+  const fileConfig = loadFileConfig();
+  const localConfig = loadLocalConfig();
+
+  const pat = process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
   const collectionUrl =
-    (await rl.question(
-      `Collection URL${existing.collectionUrl ? ` [${existing.collectionUrl}]` : ""}: `,
-    )) ||
-    existing.collectionUrl ||
-    "";
-  const project =
-    (await rl.question(`Project${existing.project ? ` [${existing.project}]` : ""}: `)) ||
-    existing.project ||
-    "";
-  const repo =
-    (await rl.question(`Repository${existing.repo ? ` [${existing.repo}]` : ""}: `)) ||
-    existing.repo ||
-    "";
-  const insecureInput =
-    (await rl.question(
-      `Disable TLS verification (insecure)? (y/N)${existing.insecure ? " [y]" : ""}: `,
-    )) || (existing.insecure ? "y" : "n");
-  const insecure = insecureInput.toLowerCase() === "y" || insecureInput === "1";
+    process.env.ADO_COLLECTION_URL ?? localConfig.collectionUrl ?? fileConfig.collectionUrl;
+  const project = process.env.ADO_PROJECT ?? localConfig.project ?? fileConfig.project;
+  const repo = process.env.ADO_REPO ?? localConfig.repo ?? fileConfig.repo;
+  const insecure =
+    process.env.ADO_INSECURE === "1" ||
+    localConfig.insecure === true ||
+    fileConfig.insecure === true;
 
-  rl.close();
-
-  if (!pat || !collectionUrl || !project || !repo) {
-    console.error("\nAll fields (PAT, Collection URL, Project, Repository) are required.");
-    process.exit(1);
-  }
-
-  const config: FileConfig = { pat, collectionUrl, project, repo, insecure };
-
-  const configDir = getConfigDir();
-  if (!existsSync(configDir)) {
-    mkdirSync(configDir, { recursive: true });
-  }
-
-  writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
-  console.log(`\nConfiguration saved to ${configPath}`);
+  console.log(
+    JSON.stringify(
+      {
+        pat: pat ? censorPat(pat) : undefined,
+        collectionUrl: collectionUrl ?? undefined,
+        project: project ?? undefined,
+        repo: repo ?? undefined,
+        insecure,
+        sources: {
+          globalConfig: getConfigFilePath(),
+          localConfig: getLocalConfigFilePath(),
+        },
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  init\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 
@@ -835,7 +909,12 @@ async function main(): Promise<void> {
   }
 
   if (command === "init") {
-    await cmdInit();
+    await cmdInit(args);
+    return;
+  }
+
+  if (command === "config") {
+    cmdConfig();
     return;
   }
 
