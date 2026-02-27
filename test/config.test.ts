@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("censorPat", () => {
-  test("censors middle of long PAT", async () => {
+  test("censors PAT longer than 8 characters showing first and last 4", async () => {
     const { censorPat } = await import("../src/config.ts");
     expect(censorPat("abcdefghijklmnop")).toBe("abcd********mnop");
   });

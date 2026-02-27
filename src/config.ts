@@ -53,7 +53,9 @@ export function loadLocalConfig(): FileConfig {
   try {
     return JSON.parse(content) as FileConfig;
   } catch {
-    console.error(`Warning: could not parse local config file at ${localPath}. Ignoring.`);
+    console.error(
+      `Warning: could not parse local config file at ${localPath}. Please check the JSON syntax. Ignoring.`,
+    );
     return {};
   }
 }
