@@ -9,6 +9,17 @@ export function parseWorkItemIds(rawValue: string | null | undefined): number[] 
   return [...new Set(ids)];
 }
 
+export function parsePrTags(rawValue: string | null | undefined): string[] {
+  if (!rawValue) return [];
+
+  const tags = rawValue
+    .split(",")
+    .map((part) => part.trim())
+    .filter((tag) => tag.length > 0);
+
+  return [...new Set(tags)];
+}
+
 export function buildPullRequestArtifactUrl(
   pr:
     | { pullRequestId?: number; repository?: { id?: string; project?: { id?: string } } }
