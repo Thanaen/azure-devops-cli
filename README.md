@@ -72,8 +72,8 @@ ado smoke
 - `workitem-comment-update <id> <commentId> --text="..." [--file=path]`
 - `prs [status] [top] [repo]`
 - `pr-get <id> [repo]`
-- `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]`
-- `pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]`
+- `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]`
+- `pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]`
 - `pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]`
 - `pr-approve <id> [repo]`
 - `pr-autocomplete <id> [repo]`

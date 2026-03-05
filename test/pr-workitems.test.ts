@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { buildPullRequestArtifactUrl, parseWorkItemIds } from "../src/pr-workitems.ts";
+import { buildPullRequestArtifactUrl, parsePrTags, parseWorkItemIds } from "../src/pr-workitems.ts";
 
 describe("parseWorkItemIds", () => {
   test("parses comma-separated ids, filters invalid values, and deduplicates", () => {
@@ -10,6 +10,18 @@ describe("parseWorkItemIds", () => {
   test("returns empty array for empty input", () => {
     expect(parseWorkItemIds("")).toEqual([]);
     expect(parseWorkItemIds(undefined)).toEqual([]);
+  });
+});
+
+describe("parsePrTags", () => {
+  test("parses comma-separated tags and deduplicates values", () => {
+    const tags = parsePrTags("backend, release-1, backend,   ");
+    expect(tags).toEqual(["backend", "release-1"]);
+  });
+
+  test("returns empty array for empty input", () => {
+    expect(parsePrTags("")).toEqual([]);
+    expect(parsePrTags(undefined)).toEqual([]);
   });
 });
 
