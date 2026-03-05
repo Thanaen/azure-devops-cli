@@ -9,7 +9,7 @@ import {
   loadLocalConfig,
   censorPat,
 } from "./config.ts";
-import { buildPullRequestArtifactUrl, parseWorkItemIds } from "./pr-workitems.ts";
+import { buildPullRequestArtifactUrl, parsePrTags, parseWorkItemIds } from "./pr-workitems.ts";
 import {
   buildRecentWorkItemsWiql,
   parseOptionArgs,
@@ -672,6 +672,33 @@ async function linkWorkItemsToPr(
   }
 }
 
+async function addTagsToPr(
+  config: AdoConfig,
+  repoName: string,
+  pullRequestId: number,
+  tags: string[],
+): Promise<void> {
+  if (tags.length === 0) return;
+
+  const gitApi = await config.connection.getGitApi();
+  const repository = await gitApi.getRepository(repoName, config.project);
+  const repositoryId = repository?.id;
+
+  if (!repositoryId) {
+    throw new Error(`Repository "${repoName}" not found.`);
+  }
+
+  const existing = await gitApi.getPullRequestLabels(repositoryId, pullRequestId, config.project);
+  const existingTags = new Set(existing.map((label) => label.name).filter(Boolean));
+
+  for (const tag of tags) {
+    if (existingTags.has(tag)) continue;
+
+    await gitApi.createPullRequestLabel({ name: tag }, repositoryId, pullRequestId, config.project);
+    console.log(`Added tag "${tag}" to PR #${pullRequestId}`);
+  }
+}
+
 async function cmdPrCreate(config: AdoConfig, args: string[]): Promise<void> {
   const kv = Object.fromEntries(
     args.map((arg) => {
@@ -686,10 +713,11 @@ async function cmdPrCreate(config: AdoConfig, args: string[]): Promise<void> {
   const description = kv.description ?? "";
   const repo = pickRepo(config, kv.repo);
   const workItemIds = parseWorkItemIds(kv["work-items"]);
+  const tags = parsePrTags(kv.tags);
 
   if (!title || !source || !target) {
     console.error(
-      "Usage: pr-create --title=... --source=feature/x --target=develop [--description=...] [--repo=...] [--work-items=123,456]",
+      "Usage: pr-create --title=... --source=feature/x --target=develop [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]",
     );
     process.exit(1);
   }
@@ -711,6 +739,10 @@ async function cmdPrCreate(config: AdoConfig, args: string[]): Promise<void> {
     const createdPr = await gitApi.getPullRequestById(created.pullRequestId!, config.project);
     await linkWorkItemsToPr(config, repo, createdPr, workItemIds);
   }
+
+  if (created.pullRequestId && tags.length > 0) {
+    await addTagsToPr(config, repo, created.pullRequestId, tags);
+  }
 }
 
 async function cmdPrUpdate(
@@ -721,7 +753,7 @@ async function cmdPrUpdate(
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {
     console.error(
-      "Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]",
+      "Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]",
     );
     process.exit(1);
   }
@@ -736,13 +768,14 @@ async function cmdPrUpdate(
   const repo = pickRepo(config, kv.repo);
   const body: Record<string, string> = {};
   const workItemIds = parseWorkItemIds(kv["work-items"]);
+  const tags = parsePrTags(kv.tags);
 
   if (kv.title !== undefined) body.title = kv.title;
   if (kv.description !== undefined) body.description = kv.description;
 
-  if (Object.keys(body).length === 0 && workItemIds.length === 0) {
+  if (Object.keys(body).length === 0 && workItemIds.length === 0 && tags.length === 0) {
     console.error(
-      "Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]",
+      "Usage: pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]",
     );
     process.exit(1);
   }
@@ -759,6 +792,10 @@ async function cmdPrUpdate(
 
   if (workItemIds.length > 0) {
     await linkWorkItemsToPr(config, repo, updated, workItemIds);
+  }
+
+  if (tags.length > 0) {
+    await addTagsToPr(config, repo, id, tags);
   }
 }
 
@@ -958,7 +995,7 @@ function cmdConfig(): void {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo] [--tag=<tag>]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo] [--tag=<tag>]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 

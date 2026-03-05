@@ -34,8 +34,8 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 - List PRs: `ado prs active 10 "MyRepo"`
 - List PRs filtered by tag: `ado prs active 20 "MyRepo" --tag=backend`
 - Get PR: `ado pr-get <id> "MyRepo"`
-- Create PR: `ado pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo" --work-items=123,456`
-- Update PR: `ado pr-update <id> --title="..." --description="..." --repo="MyRepo" --work-items=123,456`
+- Create PR: `ado pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo" --work-items=123,456 --tags=backend,release-1`
+- Update PR: `ado pr-update <id> --title="..." --description="..." --repo="MyRepo" --work-items=123,456 --tags=backend,release-1`
 - Cherry-pick PR onto another branch: `ado pr-cherry-pick <id> --target="main" --topic="cherry-pick-branch" --repo="MyRepo"`
 - Approve PR: `ado pr-approve <id> "MyRepo"`
 - Enable auto-complete: `ado pr-autocomplete <id> "MyRepo"`
