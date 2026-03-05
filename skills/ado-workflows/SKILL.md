@@ -32,6 +32,7 @@ If auth is missing, stop and ask for `DEVOPS_PAT`.
 - Add a comment on a work item: `ado workitem-comment-add <id> --text="..."`
 - Update an existing comment on a work item: `ado workitem-comment-update <id> <commentId> --text="..."`
 - List PRs: `ado prs active 10 "MyRepo"`
+- List PRs filtered by tag: `ado prs active 20 "MyRepo" --tag=backend`
 - Get PR: `ado pr-get <id> "MyRepo"`
 - Create PR: `ado pr-create --title="..." --source="feature/x" --target="develop" --description="..." --repo="MyRepo" --work-items=123,456`
 - Update PR: `ado pr-update <id> --title="..." --description="..." --repo="MyRepo" --work-items=123,456`

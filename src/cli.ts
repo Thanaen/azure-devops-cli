@@ -378,15 +378,31 @@ async function cmdWorkItemCommentUpdate(
   );
 }
 
-async function cmdPrs(
-  config: AdoConfig,
-  status = "active",
-  topRaw = "10",
-  repoArg?: string,
-): Promise<void> {
+async function cmdPrs(config: AdoConfig, args: string[] = []): Promise<void> {
+  const usage = "Usage: prs [status] [top] [repo] [--tag=<tag>]";
+  const { options, positionals } = parseOptionArgs(args);
+  const allowedOptions = new Set(["tag"]);
+
+  for (const key of Object.keys(options)) {
+    if (!allowedOptions.has(key)) {
+      console.error(`Unknown option for prs: --${key}`);
+      console.error(usage);
+      process.exit(1);
+    }
+  }
+
+  if (positionals.length > 3) {
+    console.error(usage);
+    process.exit(1);
+  }
+
+  const status = positionals[0] ?? "active";
+  const topRaw = positionals[1] ?? "10";
+  const repoArg = positionals[2];
   const top = Number(topRaw);
   const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
   const repo = pickRepo(config, repoArg);
+  const tagFilter = typeof options.tag === "string" ? options.tag.trim().toLowerCase() : "";
 
   const gitApi = await config.connection.getGitApi();
   const prs = await gitApi.getPullRequests(
@@ -399,6 +415,12 @@ async function cmdPrs(
   );
 
   for (const pr of prs) {
+    if (tagFilter) {
+      const hasTag =
+        pr.labels?.some((label) => label.name?.trim().toLowerCase() === tagFilter) ?? false;
+      if (!hasTag) continue;
+    }
+
     const createdBy = pr.createdBy?.displayName ?? "unknown";
     console.log(`#${pr.pullRequestId}\t[${prStatusName(pr.status)}]\t${pr.title}\t(${createdBy})`);
   }
@@ -896,7 +918,7 @@ function cmdConfig(): void {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo] [--tag=<tag>]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 
@@ -957,7 +979,7 @@ async function main(): Promise<void> {
       await cmdWorkItemCommentUpdate(config, args[0], args[1], args.slice(2));
       break;
     case "prs":
-      await cmdPrs(config, args[0], args[1], args[2]);
+      await cmdPrs(config, args);
       break;
     case "pr-get":
       await cmdPrGet(config, args[0], args[1]);
