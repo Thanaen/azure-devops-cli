@@ -405,24 +405,64 @@ async function cmdPrs(config: AdoConfig, args: string[] = []): Promise<void> {
   const tagFilter = typeof options.tag === "string" ? options.tag.trim().toLowerCase() : "";
 
   const gitApi = await config.connection.getGitApi();
-  const prs = await gitApi.getPullRequests(
-    repo,
-    { status: mapPrStatus(status) } as GitPullRequestSearchCriteria,
-    config.project,
-    undefined,
-    undefined,
-    boundedTop,
-  );
 
-  for (const pr of prs) {
-    if (tagFilter) {
-      const hasTag =
-        pr.labels?.some((label) => label.name?.trim().toLowerCase() === tagFilter) ?? false;
-      if (!hasTag) continue;
+  if (!tagFilter) {
+    const prs = await gitApi.getPullRequests(
+      repo,
+      { status: mapPrStatus(status) } as GitPullRequestSearchCriteria,
+      config.project,
+      undefined,
+      undefined,
+      boundedTop,
+    );
+
+    for (const pr of prs) {
+      const createdBy = pr.createdBy?.displayName ?? "unknown";
+      console.log(
+        `#${pr.pullRequestId}	[${prStatusName(pr.status)}]	${pr.title}	(${createdBy})`,
+      );
     }
 
-    const createdBy = pr.createdBy?.displayName ?? "unknown";
-    console.log(`#${pr.pullRequestId}\t[${prStatusName(pr.status)}]\t${pr.title}\t(${createdBy})`);
+    return;
+  }
+
+  const batchSize = 50;
+  let skip = 0;
+  let printed = 0;
+
+  while (printed < boundedTop) {
+    const page = await gitApi.getPullRequests(
+      repo,
+      { status: mapPrStatus(status) } as GitPullRequestSearchCriteria,
+      config.project,
+      undefined,
+      skip,
+      batchSize,
+    );
+
+    if (page.length === 0) {
+      break;
+    }
+
+    for (const pr of page) {
+      const prId = pr.pullRequestId;
+      if (!prId) continue;
+
+      const fullPr = await gitApi.getPullRequestById(prId, config.project);
+      const hasTag =
+        fullPr.labels?.some((label) => label.name?.trim().toLowerCase() === tagFilter) ?? false;
+      if (!hasTag) continue;
+
+      const createdBy = pr.createdBy?.displayName ?? "unknown";
+      console.log(`#${prId}	[${prStatusName(pr.status)}]	${pr.title}	(${createdBy})`);
+      printed += 1;
+
+      if (printed >= boundedTop) {
+        break;
+      }
+    }
+
+    skip += page.length;
   }
 }
 
