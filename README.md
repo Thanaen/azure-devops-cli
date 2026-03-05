@@ -59,6 +59,7 @@ ado smoke
 
 ## Commands
 
+- `-v`, `--version`
 - `init [--local]`
 - `config`
 - `smoke`
