@@ -896,8 +896,14 @@ function cmdConfig(): void {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
+}
+
+async function printVersion(): Promise<void> {
+  const pkgPath = new URL("../package.json", import.meta.url);
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8")) as { version: string };
+  console.log(pkg.version);
 }
 
 async function main(): Promise<void> {
@@ -905,6 +911,11 @@ async function main(): Promise<void> {
 
   if (command === "help" || command === "--help" || command === "-h") {
     printHelp();
+    return;
+  }
+
+  if (command === "-v" || command === "--version") {
+    await printVersion();
     return;
   }
 
