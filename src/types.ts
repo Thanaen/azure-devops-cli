@@ -31,3 +31,10 @@ export interface ParsedWorkItemsRecentArgs {
   top: number;
   filters: WorkItemFilters;
 }
+
+export interface ParsedPrsArgs {
+  status: string;
+  top: number;
+  repo?: string;
+  tag?: string;
+}

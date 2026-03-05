@@ -70,7 +70,7 @@ ado smoke
 - `workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]`
 - `workitem-comment-add <id> --text="..." [--file=path]`
 - `workitem-comment-update <id> <commentId> --text="..." [--file=path]`
-- `prs [status] [top] [repo]`
+- `prs [status] [top] [repo] [--tag=<tag>]`
 - `pr-get <id> [repo]`
 - `pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]`
 - `pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]`
@@ -87,6 +87,9 @@ ado workitems-recent 20 --type=Bug --tag=bot
 
 # Bugs "bot" encore en état New
 ado workitems-recent --type=Bug --tag=bot --state=New
+
+# PRs actives taggées "release-1"
+ado prs active 10 --tag=release-1
 
 # Mettre à jour un commentaire existant (dédup)
 ado workitem-comment-update 20485 12527 --file=./comment.md
