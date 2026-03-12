@@ -125,13 +125,62 @@ Then it publishes with:
 npm publish --access public --provenance
 ```
 
-## Agent skill included
+## Claude Code plugin included
 
-A reusable agent skill is included at:
+This repository also ships as a Claude Code plugin and local marketplace.
 
-- `skills/ado-workflows/SKILL.md`
+### What it adds
 
-This helps AI coding agents run consistent Azure DevOps workflows using this CLI.
+- a reusable skill at `skills/ado-workflows/SKILL.md`
+- a bundled MCP server at `claude-code/ado-mcp.mjs`
+- plugin metadata in `.claude-plugin/plugin.json`
+- a local marketplace manifest in `.claude-plugin/marketplace.json`
+
+### Local development
+
+Load the plugin directly from a checkout:
+
+```bash
+claude --plugin-dir .
+```
+
+The bundled MCP server resolves the CLI in this order:
+
+1. `ADO_MCP_COMMAND` / `ADO_MCP_COMMAND_ARGS` override
+2. bundled `dist/cli.js` when present
+3. `ado` from `PATH`
+4. `bun src/cli.ts` as a development fallback
+
+### Install through the bundled marketplace
+
+From Claude Code:
+
+```text
+/plugin marketplace add https://github.com/Thanaen/azure-devops-cli.git
+/plugin install ado-cli@thanaen-ado-cli
+```
+
+### Main bundled MCP tools
+
+- `ado_config_show`
+- `ado_smoke`
+- `ado_repos_list`
+- `ado_branches_list`
+- `ado_workitem_get`
+- `ado_workitems_recent`
+- `ado_workitem_comments_list`
+- `ado_workitem_comment_add`
+- `ado_workitem_comment_update`
+- `ado_pull_requests_list`
+- `ado_pull_request_get`
+- `ado_pull_request_create`
+- `ado_pull_request_update`
+- `ado_pull_request_cherry_pick`
+- `ado_pull_request_approve`
+- `ado_pull_request_autocomplete`
+- `ado_builds_list`
+
+This helps AI coding agents run consistent Azure DevOps workflows using the same CLI source of truth.
 
 ## Development
 

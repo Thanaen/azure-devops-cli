@@ -1,0 +1,22 @@
+{
+  "name": "thanaen-ado-cli",
+  "owner": {
+    "name": "Thanaen"
+  },
+  "metadata": {
+    "description": "Azure DevOps CLI plugin marketplace for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "ado-cli",
+      "source": "./",
+      "description": "Azure DevOps CLI tools for Claude Code via a bundled MCP server and reusable skill.",
+      "version": "0.3.0",
+      "author": {
+        "name": "Thanaen"
+      },
+      "homepage": "https://github.com/Thanaen/azure-devops-cli",
+      "repository": "https://github.com/Thanaen/azure-devops-cli"
+    }
+  ]
+}

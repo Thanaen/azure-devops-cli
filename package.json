@@ -10,6 +10,9 @@
     "ado": "dist/cli.js"
   },
   "files": [
+    ".claude-plugin",
+    ".mcp.json",
+    "claude-code",
     "dist",
     "README.md",
     "skills"

@@ -5,15 +5,22 @@ description: Use the local Azure DevOps CLI for day-to-day workflows (work items
 
 # ADO Workflows
 
-Use the `ado` CLI instead of ad-hoc curl commands.
+Use the Azure DevOps tools from this project instead of ad-hoc curl commands.
+
+## Preferred execution path
+
+1. If the bundled MCP tools are available, prefer them.
+   - Examples: `ado_config_show`, `ado_smoke`, `ado_workitem_get`, `ado_pull_request_create`
+2. Otherwise, fall back to the local `ado` CLI.
 
 ## Preflight
 
 1. Verify auth is available:
    - `test -n "$DEVOPS_PAT" && echo OK || echo MISSING`
 2. Verify connectivity:
-   - `ado smoke`
-   - If needed, run an independent host check (outside the CLI) to distinguish network issues from ADO config issues.
+   - MCP: `ado_smoke`
+   - CLI fallback: `ado smoke`
+3. If needed, run an independent host check (outside the CLI) to distinguish network issues from ADO config issues.
 
 If auth is missing, stop and ask for `DEVOPS_PAT`.
 
