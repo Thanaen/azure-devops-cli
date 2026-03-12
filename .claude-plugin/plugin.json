@@ -1,0 +1,12 @@
+{
+  "name": "ado-cli",
+  "description": "Azure DevOps CLI tools for Claude Code via a bundled MCP server and reusable skill.",
+  "version": "0.3.0",
+  "author": {
+    "name": "Thanaen"
+  },
+  "homepage": "https://github.com/Thanaen/azure-devops-cli",
+  "repository": "https://github.com/Thanaen/azure-devops-cli",
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}

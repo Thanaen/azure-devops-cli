@@ -1,0 +1,7 @@
+{
+  "ado-cli": {
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/claude-code/ado-mcp.mjs"],
+    "cwd": "${CLAUDE_PLUGIN_ROOT}"
+  }
+}
