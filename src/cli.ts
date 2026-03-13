@@ -34,6 +34,10 @@ import { BuildQueryOrder } from "azure-devops-node-api/interfaces/BuildInterface
 import { Operation } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 import type { JsonPatchOperation } from "azure-devops-node-api/interfaces/common/VSSInterfaces";
 
+// Suppress noisy Node.js warnings (e.g. url.parse() deprecation from dependencies,
+// NODE_TLS_REJECT_UNAUTHORIZED when ADO_INSECURE=1 is intentionally set).
+process.removeAllListeners("warning");
+
 function pickRepo(config: AdoConfig, value?: string): string {
   return value || config.repo;
 }
