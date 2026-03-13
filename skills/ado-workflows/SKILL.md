@@ -10,7 +10,7 @@ Use the `ado` CLI instead of ad-hoc curl commands.
 ## Preflight
 
 Run `ado status` before any other command. It checks token, configuration, and connectivity in one step.
-If it reports an issue, resolve it before proceeding. If `DEVOPS_PAT` is missing, stop and ask for it.
+If it reports an issue, guide the user to run `ado init` (or `ado init --local` for per-project setup) to configure the CLI.
 
 ## Core commands
 
