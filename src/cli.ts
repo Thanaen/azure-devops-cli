@@ -112,6 +112,51 @@ async function cmdSmoke(config: AdoConfig): Promise<void> {
   }
 }
 
+async function cmdStatus(): Promise<void> {
+  const localConfig = loadLocalConfig();
+  const fileConfig = loadFileConfig();
+
+  const pat = process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
+  if (!pat) {
+    console.error("Not ready: DEVOPS_PAT is not set");
+    process.exit(1);
+  }
+
+  const collectionUrl =
+    process.env.ADO_COLLECTION_URL ?? localConfig.collectionUrl ?? fileConfig.collectionUrl ?? "";
+  const project = process.env.ADO_PROJECT ?? localConfig.project ?? fileConfig.project ?? "";
+  const repo = process.env.ADO_REPO ?? localConfig.repo ?? fileConfig.repo ?? "";
+
+  const hasPlaceholder = (v: string): boolean => v.includes("<your-");
+  if (!collectionUrl || hasPlaceholder(collectionUrl)) {
+    console.error("Not ready: ADO_COLLECTION_URL is not configured");
+    process.exit(1);
+  }
+  if (!project || hasPlaceholder(project)) {
+    console.error("Not ready: ADO_PROJECT is not configured");
+    process.exit(1);
+  }
+  if (!repo || hasPlaceholder(repo)) {
+    console.error("Not ready: ADO_REPO is not configured");
+    process.exit(1);
+  }
+
+  try {
+    const config = getConfig();
+    const witApi = await config.connection.getWorkItemTrackingApi();
+    await witApi.queryByWiql(
+      { query: "SELECT [System.Id] FROM WorkItems ORDER BY [System.ChangedDate] DESC" },
+      { project: config.project },
+      undefined,
+      1,
+    );
+    console.log("Ready");
+  } catch (err) {
+    console.error(`Not ready: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+}
+
 async function cmdRepos(config: AdoConfig): Promise<void> {
   const gitApi = await config.connection.getGitApi();
   const repos = await gitApi.getRepositories(config.project);
@@ -933,7 +978,7 @@ function cmdConfig(): void {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  status\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
   );
 }
 
@@ -963,6 +1008,11 @@ async function main(): Promise<void> {
 
   if (command === "config") {
     cmdConfig();
+    return;
+  }
+
+  if (command === "status") {
+    await cmdStatus();
     return;
   }
 

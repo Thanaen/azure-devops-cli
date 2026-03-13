@@ -9,13 +9,8 @@ Use the `ado` CLI instead of ad-hoc curl commands.
 
 ## Preflight
 
-1. Verify auth is available:
-   - `test -n "$DEVOPS_PAT" && echo OK || echo MISSING`
-2. Verify connectivity:
-   - `ado smoke`
-   - If needed, run an independent host check (outside the CLI) to distinguish network issues from ADO config issues.
-
-If auth is missing, stop and ask for `DEVOPS_PAT`.
+Run `ado status` before any other command. It checks token, configuration, and connectivity in one step.
+If it reports an issue, resolve it before proceeding. If `DEVOPS_PAT` is missing, stop and ask for it.
 
 ## Core commands
 
