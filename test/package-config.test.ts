@@ -17,9 +17,9 @@ describe("package.json publishing metadata", () => {
     });
   });
 
-  test("version is 0.3.0", async () => {
+  test("version is 0.4.0", async () => {
     const pkg = await loadPackageJson();
 
-    expect(pkg.version).toBe("0.3.0");
+    expect(pkg.version).toBe("0.4.0");
   });
 });
