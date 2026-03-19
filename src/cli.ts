@@ -8,6 +8,7 @@ import {
   loadFileConfig,
   loadLocalConfig,
   censorPat,
+  isInteractive,
 } from "./config.ts";
 import { buildPullRequestArtifactUrl, parsePrTags, parseWorkItemIds } from "./pr-workitems.ts";
 import {
@@ -120,9 +121,9 @@ async function cmdStatus(): Promise<void> {
   const localConfig = loadLocalConfig();
   const fileConfig = loadFileConfig();
 
-  const pat = process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
+  const pat = process.env.ADO_PAT ?? process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
   if (!pat) {
-    console.error("Not ready: DEVOPS_PAT is not set");
+    console.error("Not ready: ADO_PAT is not set");
     process.exit(1);
   }
 
@@ -161,18 +162,41 @@ async function cmdStatus(): Promise<void> {
   }
 }
 
-async function cmdRepos(config: AdoConfig): Promise<void> {
+async function cmdRepos(config: AdoConfig, args: string[] = []): Promise<void> {
+  const json = args.includes("--json");
   const gitApi = await config.connection.getGitApi();
   const repos = await gitApi.getRepositories(config.project);
+  if (json) {
+    console.log(
+      JSON.stringify(
+        repos.map((r) => ({ id: r.id, name: r.name })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   for (const repo of repos) {
     console.log(`${repo.id}\t${repo.name}`);
   }
 }
 
-async function cmdBranches(config: AdoConfig, repoArg?: string): Promise<void> {
+async function cmdBranches(config: AdoConfig, args: string[] = []): Promise<void> {
+  const json = args.includes("--json");
+  const repoArg = args.find((a) => !a.startsWith("--"));
   const gitApi = await config.connection.getGitApi();
   const repo = pickRepo(config, repoArg);
   const refs = await gitApi.getRefs(repo, config.project, "heads/");
+  if (json) {
+    console.log(
+      JSON.stringify(
+        refs.map((r) => ({ name: String(r.name || "").replace("refs/heads/", "") })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   for (const ref of refs) {
     const name = String(ref.name || "").replace("refs/heads/", "");
     console.log(name);
@@ -241,14 +265,16 @@ async function cmdWorkItemGet(
 }
 
 async function cmdWorkItemsRecent(config: AdoConfig, args: string[] = []): Promise<void> {
+  const json = args.includes("--json");
+  const filteredArgs = args.filter((a) => a !== "--json");
   let parsedArgs;
 
   try {
-    parsedArgs = parseWorkItemsRecentArgs(args);
+    parsedArgs = parseWorkItemsRecentArgs(filteredArgs);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     console.error(
-      "Usage: workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]",
+      "Usage: workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>] [--json]",
     );
     process.exit(1);
   }
@@ -261,8 +287,13 @@ async function cmdWorkItemsRecent(config: AdoConfig, args: string[] = []): Promi
     parsedArgs.top,
   );
 
-  for (const wi of wiqlResult.workItems ?? []) {
-    console.log(wi.id);
+  const ids = (wiqlResult.workItems ?? []).map((wi) => wi.id);
+  if (json) {
+    console.log(JSON.stringify(ids, null, 2));
+    return;
+  }
+  for (const id of ids) {
+    console.log(id);
   }
 }
 
@@ -427,12 +458,13 @@ async function cmdWorkItemCommentUpdate(
   );
 }
 
-async function cmdPrs(
-  config: AdoConfig,
-  status = "active",
-  topRaw = "10",
-  repoArg?: string,
-): Promise<void> {
+async function cmdPrs(config: AdoConfig, args: string[] = []): Promise<void> {
+  const json = args.includes("--json");
+  const positionals = args.filter((a) => !a.startsWith("--"));
+  const status = positionals[0] ?? "active";
+  const topRaw = positionals[1] ?? "10";
+  const repoArg = positionals[2];
+
   const top = Number(topRaw);
   const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
   const repo = pickRepo(config, repoArg);
@@ -447,6 +479,21 @@ async function cmdPrs(
     boundedTop,
   );
 
+  if (json) {
+    console.log(
+      JSON.stringify(
+        prs.map((pr) => ({
+          id: pr.pullRequestId,
+          status: prStatusName(pr.status),
+          title: pr.title,
+          createdBy: pr.createdBy?.displayName ?? null,
+        })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   for (const pr of prs) {
     const createdBy = pr.createdBy?.displayName ?? "unknown";
     console.log(`#${pr.pullRequestId}\t[${prStatusName(pr.status)}]\t${pr.title}\t(${createdBy})`);
@@ -594,7 +641,10 @@ async function cmdPrAutocomplete(
   }
 }
 
-async function cmdBuilds(config: AdoConfig, topRaw = "10"): Promise<void> {
+async function cmdBuilds(config: AdoConfig, args: string[] = []): Promise<void> {
+  const json = args.includes("--json");
+  const positionals = args.filter((a) => !a.startsWith("--"));
+  const topRaw = positionals[0] ?? "10";
   const top = Number(topRaw);
   const boundedTop = Number.isFinite(top) && top > 0 ? Math.min(top, 50) : 10;
 
@@ -619,6 +669,22 @@ async function cmdBuilds(config: AdoConfig, topRaw = "10"): Promise<void> {
     BuildQueryOrder.QueueTimeDescending,
   );
 
+  if (json) {
+    console.log(
+      JSON.stringify(
+        builds.map((b) => ({
+          id: b.id,
+          status: b.status,
+          result: b.result ?? null,
+          definition: b.definition?.name ?? null,
+          sourceBranch: b.sourceBranch ?? null,
+        })),
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   for (const b of builds) {
     console.log(
       `#${b.id}\t${b.status}/${b.result ?? "n/a"}\t${b.definition?.name ?? "unknown"}\t${b.sourceBranch ?? ""}`,
@@ -860,6 +926,14 @@ async function cmdPrCherryPick(config: AdoConfig, args: string[]): Promise<void>
 }
 
 async function cmdInit(args: string[]): Promise<void> {
+  if (!isInteractive()) {
+    console.error("The init command requires an interactive terminal.");
+    console.error(
+      "For non-interactive usage, set environment variables: ADO_PAT, ADO_COLLECTION_URL, ADO_PROJECT, ADO_REPO",
+    );
+    process.exit(1);
+  }
+
   const isLocal = args.includes("--local");
   const { createInterface } = await import("node:readline/promises");
   const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
@@ -951,7 +1025,7 @@ function cmdConfig(): void {
   const fileConfig = loadFileConfig();
   const localConfig = loadLocalConfig();
 
-  const pat = process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
+  const pat = process.env.ADO_PAT ?? process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
   const collectionUrl =
     process.env.ADO_COLLECTION_URL ?? localConfig.collectionUrl ?? fileConfig.collectionUrl;
   const project = process.env.ADO_PROJECT ?? localConfig.project ?? fileConfig.project;
@@ -982,7 +1056,7 @@ function cmdConfig(): void {
 
 function printHelp(): void {
   console.log(
-    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  status\n  smoke\n  repos\n  branches [repo]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top]\n`,
+    `Azure DevOps CLI\n\nCommands:\n  -v, --version\n  init [--local]\n  config\n  status\n  smoke\n  repos [--json]\n  branches [repo] [--json]\n  workitem-get <id> [--raw] [--expand=all|fields|links|relations]\n  workitems-recent [top] [--tag=<tag>] [--type=<work-item-type>] [--state=<state>] [--json]\n  workitem-comments <id> [top] [--top=<n>] [--order=asc|desc]\n  workitem-comment-add <id> --text="..." [--file=path]\n  workitem-comment-update <id> <commentId> --text="..." [--file=path]\n  prs [status] [top] [repo] [--json]\n  pr-get <id> [repo]\n  pr-create --title=... --source=... --target=... [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-update <id> [--title=...] [--description=...] [--repo=...] [--work-items=123,456] [--tags=tag-a,tag-b]\n  pr-cherry-pick <id> --target=... [--topic=branch-name] [--repo=...]\n  pr-approve <id> [repo]\n  pr-autocomplete <id> [repo]\n  builds [top] [--json]\n\nEnvironment variables:\n  ADO_PAT              Personal Access Token (primary)\n  DEVOPS_PAT           Personal Access Token (fallback, deprecated)\n  ADO_COLLECTION_URL   Azure DevOps collection URL\n  ADO_PROJECT          Default project\n  ADO_REPO             Default repository\n  ADO_INSECURE         Set to "1" to disable TLS verification\n`,
   );
 }
 
@@ -1027,10 +1101,10 @@ async function main(): Promise<void> {
       await cmdSmoke(config);
       break;
     case "repos":
-      await cmdRepos(config);
+      await cmdRepos(config, args);
       break;
     case "branches":
-      await cmdBranches(config, args[0]);
+      await cmdBranches(config, args);
       break;
     case "workitem-get":
       await cmdWorkItemGet(config, args[0], args.slice(1));
@@ -1048,7 +1122,7 @@ async function main(): Promise<void> {
       await cmdWorkItemCommentUpdate(config, args[0], args[1], args.slice(2));
       break;
     case "prs":
-      await cmdPrs(config, args[0], args[1], args[2]);
+      await cmdPrs(config, args);
       break;
     case "pr-get":
       await cmdPrGet(config, args[0], args[1]);
@@ -1069,7 +1143,7 @@ async function main(): Promise<void> {
       await cmdPrAutocomplete(config, args[0], args[1]);
       break;
     case "builds":
-      await cmdBuilds(config, args[0]);
+      await cmdBuilds(config, args);
       break;
     default:
       console.error(`Unknown command: ${command}`);

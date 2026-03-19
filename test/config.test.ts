@@ -79,6 +79,7 @@ describe("local config loading", () => {
     const localConfig = { project: "LocalProject", repo: "LocalRepo" };
     writeFileSync(join(testDir, "ado.json"), JSON.stringify(localConfig), "utf8");
 
+    delete process.env.ADO_PAT;
     delete process.env.DEVOPS_PAT;
     delete process.env.ADO_COLLECTION_URL;
     delete process.env.ADO_PROJECT;
@@ -191,6 +192,50 @@ describe("config file loading", () => {
     expect(config.repo).toBe("EnvRepo");
   });
 
+  test("ADO_PAT takes priority over DEVOPS_PAT", async () => {
+    const configPath = join(testDir, "ado", "config.json");
+    const fileConfig = {
+      pat: "file-pat",
+      collectionUrl: "https://dev.azure.com/file-org",
+      project: "FileProject",
+      repo: "FileRepo",
+    };
+    writeFileSync(configPath, JSON.stringify(fileConfig), "utf8");
+
+    process.env.ADO_PAT = "ado-pat-value";
+    process.env.DEVOPS_PAT = "devops-pat-value";
+    process.env.ADO_COLLECTION_URL = "https://dev.azure.com/env-org";
+    process.env.ADO_PROJECT = "EnvProject";
+    process.env.ADO_REPO = "EnvRepo";
+
+    const { getConfig } = await import("../src/config.ts");
+    const config = getConfig();
+
+    expect(config.pat).toBe("ado-pat-value");
+  });
+
+  test("DEVOPS_PAT is used as fallback when ADO_PAT is not set", async () => {
+    const configPath = join(testDir, "ado", "config.json");
+    const fileConfig = {
+      pat: "file-pat",
+      collectionUrl: "https://dev.azure.com/file-org",
+      project: "FileProject",
+      repo: "FileRepo",
+    };
+    writeFileSync(configPath, JSON.stringify(fileConfig), "utf8");
+
+    delete process.env.ADO_PAT;
+    process.env.DEVOPS_PAT = "devops-pat-value";
+    process.env.ADO_COLLECTION_URL = "https://dev.azure.com/env-org";
+    process.env.ADO_PROJECT = "EnvProject";
+    process.env.ADO_REPO = "EnvRepo";
+
+    const { getConfig } = await import("../src/config.ts");
+    const config = getConfig();
+
+    expect(config.pat).toBe("devops-pat-value");
+  });
+
   test("file config is used when env vars are not set", async () => {
     const configPath = join(testDir, "ado", "config.json");
     const fileConfig = {
@@ -201,6 +246,7 @@ describe("config file loading", () => {
     };
     writeFileSync(configPath, JSON.stringify(fileConfig), "utf8");
 
+    delete process.env.ADO_PAT;
     delete process.env.DEVOPS_PAT;
     delete process.env.ADO_COLLECTION_URL;
     delete process.env.ADO_PROJECT;
@@ -213,5 +259,18 @@ describe("config file loading", () => {
     expect(config.collectionUrl).toBe("https://dev.azure.com/file-org");
     expect(config.project).toBe("FileProject");
     expect(config.repo).toBe("FileRepo");
+  });
+});
+
+describe("isInteractive", () => {
+  test("returns a boolean", async () => {
+    const { isInteractive } = await import("../src/config.ts");
+    expect(typeof isInteractive()).toBe("boolean");
+  });
+
+  test("returns false in test/CI environment", async () => {
+    const { isInteractive } = await import("../src/config.ts");
+    // In bun test, stdin.isTTY is typically undefined
+    expect(isInteractive()).toBe(false);
   });
 });
