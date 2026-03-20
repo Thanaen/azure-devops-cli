@@ -60,6 +60,10 @@ export function loadLocalConfig(): FileConfig {
   }
 }
 
+export function isInteractive(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
 export function censorPat(pat: string): string {
   if (pat.length <= 8) {
     return "****";
@@ -71,10 +75,18 @@ export function getConfig(): AdoConfig {
   const fileConfig = loadFileConfig();
   const localConfig = loadLocalConfig();
 
-  const pat = process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
+  const pat = process.env.ADO_PAT ?? process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
   if (!pat) {
-    console.error("Missing DEVOPS_PAT environment variable or pat in config file.");
-    console.error(`Run "ado init" to create a config file at ${getConfigFilePath()}`);
+    if (isInteractive()) {
+      console.error("Missing ADO_PAT (or DEVOPS_PAT) environment variable or pat in config file.");
+      console.error(`Run "ado init" to create a config file at ${getConfigFilePath()}`);
+    } else {
+      console.error("Error: ADO_PAT environment variable is not set.");
+      console.error(
+        'Please set it in your environment or in your Claude Desktop config (claude_desktop_config.json) under the "env" key.',
+      );
+      console.error("Never paste your PAT directly in the chat.");
+    }
     process.exit(1);
   }
 
@@ -93,9 +105,13 @@ export function getConfig(): AdoConfig {
     isDefaultPlaceholder(repo)
   ) {
     console.error(
-      "ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO.",
+      "ADO configuration is incomplete. Set ADO_COLLECTION_URL, ADO_PROJECT, and ADO_REPO environment variables.",
     );
-    console.error(`You can also run "ado init" to create a config file at ${getConfigFilePath()}`);
+    if (isInteractive()) {
+      console.error(
+        `You can also run "ado init" to create a config file at ${getConfigFilePath()}`,
+      );
+    }
     process.exit(1);
   }
 
