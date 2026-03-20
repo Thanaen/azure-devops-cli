@@ -123,7 +123,7 @@ async function cmdStatus(): Promise<void> {
 
   const pat = process.env.ADO_PAT ?? process.env.DEVOPS_PAT ?? localConfig.pat ?? fileConfig.pat;
   if (!pat) {
-    console.error("Not ready: ADO_PAT is not set");
+    console.error("Not ready: ADO_PAT (or DEVOPS_PAT) is not set");
     process.exit(1);
   }
 
