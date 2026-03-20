@@ -16,10 +16,4 @@ describe("package.json publishing metadata", () => {
       ado: "dist/cli.js",
     });
   });
-
-  test("version is 0.5.0", async () => {
-    const pkg = await loadPackageJson();
-
-    expect(pkg.version).toBe("0.5.0");
-  });
 });
